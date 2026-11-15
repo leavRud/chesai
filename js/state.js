@@ -19,10 +19,9 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const APP_VERSION = '1.0.0';
 
 /* =========================================================================
-   НАСТРОЙКИ PROVOD.AI — ключ теперь только в secrets Edge Function
-   (supabase/functions/chat-proxy), в браузере его больше нет
+   НАСТРОЙКИ PROVOD.AI — ключ и выбор модели под задачу теперь только
+   в Edge Function (supabase/functions/chat-proxy), в браузере их нет
    ========================================================================= */
-const PROVODAI_MODEL = 'deepseek/deepseek-v4-pro';
 let temp = localStorage.getItem('chessTemperature');
 if (temp !== null) {
   const val = parseFloat(temp);

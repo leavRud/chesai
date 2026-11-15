@@ -9,11 +9,12 @@
 //       'game'     — служебные вызовы режима персонажей (у них отдельный потолок).
 // При ошибке у исключения есть поле code: AUTH_REQUIRED, DAILY_LIMIT_REACHED,
 // GAME_LIMIT_REACHED, PROVIDER_ERROR и т.п. (см. supabase/functions/chat-proxy).
-// fast: true — быстрая модель (живой разговор с персонажем), сервер сам
-// откатится на основную, если быстрая не ответила.
-async function provodChat(messages, { temperature = 0.6, kind = 'question', fast = false } = {}) {
+// task — по ней сервер выбирает модель: 'position' (вопрос о позиции),
+// 'move' (разбор хода и партии), 'character_create', 'character' (реплики
+// персонажа). Если модель задачи не ответила, сервер повторит на запасной.
+async function provodChat(messages, { temperature = 0.6, kind = 'question', task } = {}) {
   const { data, error } = await sb.functions.invoke('chat-proxy', {
-    body: { model: PROVODAI_MODEL, messages, temperature, kind, fast },
+    body: { messages, temperature, kind, task },
   });
   if (error) {
     let code = null;
@@ -36,7 +37,7 @@ function renderChatQuota(quota) {
   const el = $id('chatQuota');
   if (!el) return;
   if (!chatSignedIn) {
-    el.innerHTML = `${t('Войдите, чтобы задавать вопросы нейросети: 15 вопросов в день бесплатно.')} ` +
+    el.innerHTML = `${t('Войдите, чтобы задавать вопросы нейросети: 5 вопросов в день бесплатно.')} ` +
       `<button type="button" class="chat-quota-login">${t('Войти')}</button>`;
     el.classList.remove('is-empty');
     return;
@@ -224,10 +225,10 @@ document.addEventListener('click', (e) => {
 function chatErrorMessage(error) {
   switch (error?.code) {
     case 'AUTH_REQUIRED':
-      return t('Чтобы спросить нейросеть, войдите в аккаунт. Это бесплатно: 15 вопросов в день.');
+      return t('Чтобы спросить нейросеть, войдите в аккаунт. Это бесплатно: 5 вопросов в день.');
     case 'DAILY_LIMIT_REACHED':
-      if (IS_VK) return t('Вопросы на сегодня закончились. Новые 15 появятся в полночь по Москве, а бонусные вопросы даются за достижения.');
-      return t('Вопросы на сегодня закончились. Новые 15 появятся в полночь по Москве. Можно купить пакет вопросов — кнопка «Купить вопросы» под чатом, а бонусные вопросы даются за достижения.');
+      if (IS_VK) return t('Вопросы на сегодня закончились. Новые 5 появятся в полночь по Москве, а бонусные вопросы даются за достижения.');
+      return t('Вопросы на сегодня закончились. Новые 5 появятся в полночь по Москве. Можно купить пакет вопросов — кнопка «Купить вопросы» под чатом, а бонусные вопросы даются за достижения.');
     case 'GAME_LIMIT_REACHED':
       return t('Персонажи на сегодня устали: дневной лимит игровых запросов исчерпан. Попробуйте завтра.');
     case 'REQUEST_TOO_LONG':

@@ -400,7 +400,7 @@ async function generateCharacterProfile(input) {
     { role: 'system', content: buildCharacterGenSystemPrompt() },
     { role: 'user', content: userMsg },
   ];
-  const raw = await provodChat(messages, { temperature: 0.95, kind: 'game', fast: true });
+  const raw = await provodChat(messages, { temperature: 0.95, kind: 'game', task: 'character_create' });
   let profile;
   try {
     profile = JSON.parse(extractJson(raw));

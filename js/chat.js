@@ -12,11 +12,7 @@ function buildChatSystemPrompt() {
   };
   const lengthRule = lengthMap[state.settings.responseLength] || lengthMap.medium;
   if (state.mode === 'characters' && state.character) return buildCharacterPersonaPrompt();
-  return `Ты — шахматный ассистент внутри приложения. Общайся с игроком ${AI_LANGUAGE}. ${lengthRule}
-Тебе будут присылать текущую позицию в FEN, историю ходов (PGN), готовый анализ Stockfish (лучший ход, оценку, глубину, варианты) и вопрос игрока.
-Stockfish — единственный источник объективно лучшего хода и оценки позиции. Ты НЕ придумываешь и не подбираешь лучший ход самостоятельно: если в сообщении есть блок STOCKFISH, при вопросах «какой ход лучше» называй именно bestMove оттуда (или один из ALTERNATIVES) и объясняй его человеческим языком. Если блока STOCKFISH нет — прямо скажи, что анализ ещё не готов, вместо того чтобы гадать самому.
-Отвечай на конкретный вопрос: подсказки по позиции, угрозы, оценка ходов, стратегические советы. Не давай длинных планов — только одну-две идеи.
-Отвечай простым текстом, без markdown-разметки (никаких **, #, списков через - или цифры).`;
+  return buildPositionSystemPrompt(lengthRule, AI_LANGUAGE); // js/ai-prompts.js
 }
 
 // Возвращает объективный контекст Stockfish для текущей FEN, используя ТОЛЬКО
@@ -62,28 +58,8 @@ async function getStockfishContextForChat(fen, { wantAlternatives = false } = {}
   return { entry, alternatives };
 }
 
-// Форматирует блок STOCKFISH/ALTERNATIVES для промпта нейросети (ТЗ п.12).
-function formatStockfishContextBlock(fen, sf) {
-  if (!sf || !sf.entry || sf.entry.score == null) {
-    return '\nSTOCKFISH: анализ этой позиции ещё не готов (недостаточная глубина).';
-  }
-  const { entry, alternatives } = sf;
-  let bestSan = entry.bestMove;
-  try {
-    const g = new Chess(fen);
-    const from = entry.bestMove.substring(0, 2);
-    const to = entry.bestMove.substring(2, 4);
-    const promotion = entry.bestMove.length === 5 ? entry.bestMove[4] : 'q';
-    const mv = g.move({ from, to, promotion });
-    if (mv) bestSan = mv.san;
-  } catch (e) { /* оставляем UCI, если не распарсилось */ }
-
-  let block = `\nSTOCKFISH:\nBest move: ${bestSan}\nEvaluation (centipawns, с точки зрения хода в этой FEN): ${entry.score}\nDepth: ${entry.depth}${entry.seldepth ? ` (seldepth ${entry.seldepth})` : ''}\nPV: ${entry.pv || '—'}`;
-  if (alternatives && alternatives.length) {
-    block += `\nALTERNATIVES:\n${alternatives.map((a, i) => `${i + 1}. ${a.san} (${a.score})`).join('\n')}`;
-  }
-  return block;
-}
+// Блок STOCKFISH (оценка словами, линии в SAN) — formatStockfishContextBlock
+// в js/ai-prompts.js.
 
 // Персонаж — собеседник за доской, а не шахматный справочник: ему уходят
 // слова игрока как есть плюс короткая сводка партии (describeGameForCharacter).
@@ -108,7 +84,7 @@ async function buildChatContextMessage(question) {
     // Персонажи (п.12) — соперник, а не помощник, поэтому Stockfish-контекст
     // ему намеренно не передаём (как и раньше — никаких подсказок).
     const sf = await getStockfishContextForChat(fen, { wantAlternatives: asksForMove });
-    sfBlock = formatStockfishContextBlock(fen, sf);
+    sfBlock = formatStockfishContextBlock(fen, sf, state.mode === 'friend' ? null : state.playerColor);
 
     // «Мой последний ход» — ход игрока, а не последний ход партии: против
     // Stockfish последним почти всегда ходит движок, и раньше нейросеть
@@ -134,14 +110,15 @@ async function buildChatContextMessage(question) {
       const beforeAbs = scoreAbsoluteWhite(beforeEntry, beforeFen);
       const afterAbs = scoreAbsoluteWhite(afterEntry, afterFen);
       const moveNo = `${Math.floor(lastIndex / 2) + 1}.${lastMove.color === 'b' ? '..' : ''}`;
-      lastMoveLossBlock = `\nPLAYER'S LAST MOVE: ${moveNo}${lastMove.san} (${lastMove.color === 'w' ? 'белые' : 'чёрные'})`;
+      lastMoveLossBlock = `\nПОСЛЕДНИЙ ХОД ИГРОКА: ${moveNo}${lastMove.san} (${aiDescribeMove(lastMove)})`;
       if (beforeAbs != null && afterAbs != null) {
         const deltaAbs = afterAbs - beforeAbs;
         const loss = Math.max(0, lastMove.color === 'w' ? -deltaAbs : deltaAbs);
-        lastMoveLossBlock += `\nLAST MOVE LOSS: ${Math.round(loss)} CPL`;
+        lastMoveLossBlock += loss < 20 ? '\nЦена хода: почти ничего не потерял по оценке Stockfish'
+          : `\nЦена хода: потерял около ${(loss / 100).toFixed(1)} пешки по оценке Stockfish`;
       }
       const opponentReply = history[lastIndex + 1];
-      if (opponentReply) lastMoveLossBlock += `\nOPPONENT'S REPLY: ${opponentReply.san}`;
+      if (opponentReply) lastMoveLossBlock += `\nОТВЕТ СОПЕРНИКА: ${opponentReply.san} (${aiDescribeMove(opponentReply)})`;
     }
   }
 
@@ -155,12 +132,15 @@ async function buildChatContextMessage(question) {
   if (asksForMove && !isCharacterMode) {
     const moves = game.moves();
     extra = `\nСписок допустимых ходов в этой позиции (SAN): ${moves.join(', ')}. 
-Игрок просит конкретный совет по ходу. Называй ход из блока STOCKFISH (Best move) или из ALTERNATIVES и объясни коротко, почему он хорош.`;
+Игрок просит конкретный совет по ходу. Называй лучший ход из блока STOCKFISH или ход из ALTERNATIVES и объясни коротко, почему он хорош.`;
   }
+  // Факты о доске (расстановка, шах, связки, что под боем) считает программа:
+  // по одной FEN модели путают, кто на кого нападает.
+  const factsBlock = isCharacterMode ? '' : `\nФАКТЫ О ПОЗИЦИИ (посчитаны программой по доске):\n${aiPositionFacts(fen)}`;
   return `CURRENT POSITION:
 FEN: ${fen}
 Сейчас ходят: ${sideLabel}${playerBlock}${materialBlock}
-GAME HISTORY (PGN): ${pgn}${sfBlock}${lastMoveLossBlock}
+GAME HISTORY (PGN): ${pgn}${factsBlock}${sfBlock}${lastMoveLossBlock}
 PLAYER QUESTION: ${question}${extra}`;
 }
 
@@ -325,10 +305,10 @@ async function handleAsk() {
       ...trimHistory(state.chatApiHistory)
     ];
     const isCharacterChat = state.mode === 'characters' && !!state.character;
-    // Все ответы — на быстрой модели: «рассуждающая» основная тратила до 2000
-    // скрытых токенов и отвечала до минуты. Персонажу ещё и температура повыше.
+    // Модель выбирает сервер по задаче: персонажу — быстрая, вопросу о позиции —
+    // посильнее. Персонажу ещё и температура повыше.
     const temperature = isCharacterChat ? 0.95 : state.settings.temperature / 10;
-    const reply = await provodChat(messages, { temperature, fast: true });
+    const reply = await provodChat(messages, { temperature, task: isCharacterChat ? 'character' : 'position' });
     const cleanReply = stripMarkdown(reply);
     state.chatApiHistory.push({ role: 'assistant', content: reply });
     const isCharacterReply = state.mode === 'characters' && state.character;

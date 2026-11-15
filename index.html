@@ -48,7 +48,7 @@
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    { "@type": "Question", "name": "Это бесплатно?", "acceptedAnswer": { "@type": "Answer", "text": "Да. Игра против Stockfish, игра вдвоём и разбор партии движком бесплатны и доступны без регистрации. После входа в аккаунт каждый день даётся 15 бесплатных вопросов ИИ-помощнику, дополнительные можно купить." } },
+    { "@type": "Question", "name": "Это бесплатно?", "acceptedAnswer": { "@type": "Answer", "text": "Да. Игра против Stockfish, игра вдвоём и разбор партии движком бесплатны и доступны без регистрации. После входа в аккаунт каждый день даётся 5 бесплатных вопросов ИИ-помощнику, дополнительные можно купить." } },
     { "@type": "Question", "name": "Нужна ли регистрация?", "acceptedAnswer": { "@type": "Answer", "text": "Чтобы играть против Stockfish или с другом — нет. Вход через Google или VK нужен для игры против персонажей, вопросов ИИ-помощнику и сохранения рейтинга Elo." } },
     { "@type": "Question", "name": "Насколько силён компьютер?", "acceptedAnswer": { "@type": "Answer", "text": "Соперник — Stockfish, один из сильнейших шахматных движков в мире. Перед партией выберите цвет фигур и один из трёх уровней: лёгкий, средний или сложный." } },
     { "@type": "Question", "name": "Кто такие персонажи?", "acceptedAnswer": { "@type": "Answer", "text": "Соперники, которыми управляет нейросеть. У каждого свой характер и стиль игры: они комментируют партию и отвечают вам в чате. Можно выбрать готового персонажа или описать своего." } },
@@ -539,7 +539,7 @@
   <div class="modal neumorphic-raised wide buy-modal" role="dialog" aria-modal="true" aria-labelledby="buyModalTitle">
     <h2 id="buyModalTitle">Купить вопросы</h2>
     <p class="modal-sub">Вопросы ИИ-помощнику зачисляются на аккаунт сразу после оплаты и не сгорают.
-      Сначала тратятся 15 бесплатных вопросов в день, затем купленные.</p>
+      Сначала тратятся 5 бесплатных вопросов в день, затем купленные.</p>
 
     <!-- Пакеты и цены приходят с сервера (js/packs.js → функция payments) -->
     <div id="buyPacks" class="buy-packs" role="radiogroup" aria-label="Пакет">
@@ -747,7 +747,7 @@
         <div class="faq-list">
           <details class="faq-item">
             <summary>Это бесплатно?</summary>
-            <p>Да. Игра против Stockfish, игра вдвоём и разбор партии движком бесплатны и доступны без регистрации. После входа в аккаунт каждый день даётся 15 бесплатных вопросов ИИ-помощнику, дополнительные можно купить.</p>
+            <p>Да. Игра против Stockfish, игра вдвоём и разбор партии движком бесплатны и доступны без регистрации. После входа в аккаунт каждый день даётся 5 бесплатных вопросов ИИ-помощнику, дополнительные можно купить.</p>
           </details>
           <details class="faq-item">
             <summary>Нужна ли регистрация?</summary>
@@ -1069,7 +1069,7 @@
           <div class="settings-group-title">О программе</div>
           <div class="settings-about">
             Версия Stockfish: <b>18 lite (single-thread)</b><br>
-            Модель ИИ: <b>deepseek/deepseek_v4_pro</b><br>
+            Модель ИИ: <b>Claude и Gemini (Provod.ai)</b><br>
             <a href="#" id="aboutLicensesLink">Лицензии</a> · <a href="https://github.com/leavRud/chessai" target="_blank" rel="noopener">GitHub</a>
           </div>
         </div>
@@ -1377,6 +1377,7 @@
 <script src="js/packs.js"></script>
 <script src="js/ai-api.js"></script>
 <script src="js/engine.js"></script>
+<script src="js/ai-prompts.js"></script>
 <script src="js/loading-screen.js"></script>
 <script src="js/home-screen.js"></script>
 <script src="js/openings.js"></script>

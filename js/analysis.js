@@ -400,7 +400,6 @@ async function openMoveDetail(fenBefore, san, label = null) {
     renderMoveDetailFacts(item);
     drawMoveDetailArrows(item, playedMove);
 
-    const bestSan = uciToSan(fenBefore, item.bestMove);
     if (!chatSignedIn) {
       loadingEl.classList.add('hidden');
       commentEl.textContent = t('Объяснение от нейросети доступно после входа в аккаунт.');
@@ -410,17 +409,19 @@ async function openMoveDetail(fenBefore, san, label = null) {
 
     setKnightLoaderProgress(loadingEl, 0, t('Нейросеть объясняет ход…'));
     const verdict = moveVerdict(item);
-    const prompt = `
-Позиция до хода (FEN): ${fenBefore}
-Ходили: ${playedMove.color === 'w' ? 'белые' : 'чёрные'}. Сыгранный ход: ${san}.
-Лучший ход по Stockfish: ${bestSan || 'неизвестно'}.
-Оценка до хода: ${formatEval(item.evalWhiteBefore)}, после хода: ${formatEval(item.evalWhiteAfter)} (в пешках, плюс — перевес белых).
-Шансы ходившей стороны на победу: ${Math.round(item.winBefore)}% → ${Math.round(item.winAfter)}%.
-Категория хода по Stockfish: ${MOVE_CLASS_LABELS[verdict] || 'неизвестно'}.
-
-Объясни человеческим языком, почему ход ${san} получил такую оценку: что он делает, какие угрозы создаёт или пропускает${bestSan && bestSan !== san ? `, и чем лучше ${bestSan}` : ''}. Не называй других «лучших ходов», кроме хода Stockfish. 2-3 предложения ${AI_LANGUAGE}, простым текстом, без markdown.
-`;
-    const reply = await provodChat([{ role: 'user', content: prompt }], { temperature: 0.4, fast: true });
+    // Ответ движка на сыгранный ход — главное для объяснения: без него модель
+    // не видит, чем ход опровергается (например, шах Сb4+ после Сxd8).
+    let afterEntry = analysisCache.get(fenAfter);
+    if (!afterEntry || !afterEntry.pv) afterEntry = await analyzePosition(fenAfter, { movetime: 500 });
+    if (token !== moveDetailToken) return;
+    const prompt = buildMoveExplainPrompt({ // js/ai-prompts.js
+      fenBefore, fenAfter, mv: playedMove,
+      bestUci: item.bestMove, bestPv: item.pv, replyPv: afterEntry && afterEntry.pv,
+      evalWhiteBefore: item.evalWhiteBefore, evalWhiteAfter: item.evalWhiteAfter,
+      winBefore: item.winBefore, winAfter: item.winAfter,
+      verdictLabel: MOVE_CLASS_LABELS[verdict], language: AI_LANGUAGE,
+    });
+    const reply = await provodChat([{ role: 'user', content: prompt }], { temperature: 0.4, task: 'move' });
     if (token !== moveDetailToken) return;
     commentEl.textContent = stripMarkdown(reply) || t('Не удалось получить комментарий.');
   } catch (error) {
@@ -672,7 +673,7 @@ async function refineGameAnalysis(runId, fens, moves, weakPc, baseDepth, critica
 Лучший ход игрока: ${stats.bestMoveObj ? stats.bestMoveObj.move.san : '—'}.
 Главная ошибка игрока: ${stats.worstMoveObj ? stats.worstMoveObj.move.san : '—'}.
 Дай короткий (2-3 предложения) комментарий о партии ${AI_LANGUAGE} простым текстом, без markdown-разметки.`;
-      const raw = await provodChat([{ role: 'user', content: prompt }], { temperature: 0.4, fast: true });
+      const raw = await provodChat([{ role: 'user', content: prompt }], { temperature: 0.4, task: 'move' });
       comment = stripMarkdown(raw) || comment;
     } catch (e) {
       console.error('Ошибка комментария ИИ:', e);

@@ -327,7 +327,8 @@ function buildCharacterPersonaPrompt() {
 - Когда собеседник что-то спрашивает или говорит, отвечай по существу и по-человечески, даже если это не о шахматах: не переводи каждую реплику в шахматы и не притягивай шахматные метафоры. Можно коротко вернуться к партии, если это к месту.
 - Когда говоришь сам, без вопроса собеседника, — говори о партии: о ходах, ситуации на доске, своих планах и настроении от игры. Опирайся на то, о чём вы уже говорили: подхвати шутку, напомни сказанное, ответь на старую подколку.
 - Говори как человек: ${AI_LANGUAGE}, от первого лица, 1–3 предложения, без списков, кавычек и разметки. Можно шутить, спорить, ворчать — в своём характере. Не будь услужливым ассистентом и не повторяй одни и те же фразы.
-- Ты соперник: не подсказывай собеседнику ходы и не оценивай позицию в его пользу. Если просят — откажи по-своему.`;
+- Ты соперник: не подсказывай собеседнику ходы и не оценивай позицию в его пользу, даже намёком. Если просят — откажи по-своему.
+- Ходы бери только из [Фон]: там перечислены последние ходы и кто их сделал. Не называй ходов, которых там нет, и не объявляй, какой ход сделаешь следующим — его выбираешь не ты в разговоре, а партия.`;
 }
 
 // Короткая сводка партии для пометок [Фон: …]: цвет, номер хода, последние
@@ -335,10 +336,13 @@ function buildCharacterPersonaPrompt() {
 const PIECE_VALUES = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 function describeGameForCharacter() {
   const game = state.game;
-  const history = game.history();
+  const history = game.history({ verbose: true });
   const myColor = state.aiColor === 'w' ? 'белыми' : 'чёрными';
   const moveNo = Math.floor(history.length / 2) + 1;
-  const recent = history.slice(-4).join(' ');
+  // Словами и с автором: по одной записи «g6» модель решала, что это ход ферзя
+  const recent = history.slice(-4)
+    .map((mv) => `${mv.color === state.aiColor ? 'ты' : 'собеседник'} ${mv.san} (${aiDescribeMove(mv)})`)
+    .join('; ');
   let mine = 0;
   let theirs = 0;
   for (const row of game.board()) {
@@ -377,7 +381,7 @@ async function characterReact(context, isAuto = false) {
       ...trimHistory(state.chatApiHistory, 10),
       { role: 'user', content: `[Фон: ${describeGameForCharacter()}. ${context}]\nСкажи сам, без вопроса собеседника, одну-две фразы о партии в своём образе, учитывая ваш разговор.` },
     ];
-    const reply = await provodChat(messages, { temperature: 1.0, kind: 'game', fast: true });
+    const reply = await provodChat(messages, { temperature: 1.0, kind: 'game', task: 'character' });
     const clean = stripMarkdown(reply).replace(/^["«]+|["»]+$/g, '').trim();
     // Пока шёл запрос, игрок начал новую партию — реплика уже не к месту
     if (!clean || gameStartedAt !== state.gameStartedAt) return;
@@ -505,7 +509,7 @@ async function generateCharacterEndSummary(resultText, outcome) {
 {"mood":"настроение персонажа, одно слово из списка: ${Object.keys(CHARACTER_MOOD_ICONS).join(', ')}","favoriteMoment":"короткая фраза о любимом моменте партии, до 12 слов, ${AI_LANGUAGE}","comment":"комментарий персонажа о партии в его манере общения, 1-2 предложения, ${AI_LANGUAGE}"}`;
   const fallbackMood = outcome === 'character_win' ? 'calm' : (outcome === 'player_win' ? 'sad' : 'neutral');
   try {
-    const raw = await provodChat([{ role: 'user', content: prompt }], { temperature: 0.85, kind: 'game', fast: true });
+    const raw = await provodChat([{ role: 'user', content: prompt }], { temperature: 0.85, kind: 'game', task: 'character' });
     const parsed = JSON.parse(extractJson(raw));
     const mood = String(parsed.mood || '').trim().toLowerCase();
     renderCharacterResult({
