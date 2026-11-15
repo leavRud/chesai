@@ -35,6 +35,8 @@ function resetToModeSelection() {
 }
 
 function initGame() {
+  // Прошлая партия брошена недоигранной — засчитываем поражение (history.js)
+  settlePendingRatedGame();
   closePromotionPicker();
   state.game = new Chess();
   state.isGameOver = false;
@@ -322,6 +324,7 @@ function onMoveMade(move, isUserMove = false) {
     });
   }
   if (state.mode === 'online' && isUserMove) onlineSendMove(move);
+  if (isUserMove) markPendingRatedGame(); // брошенная партия = поражение (history.js)
   // После хода перезапускаем таймер
   if (!state.isGameOver) {
     stopTimer();
@@ -630,7 +633,17 @@ function renderResultStats(reason) {
 
 // winner — цвет победителя ('w' | 'b') или null при ничьей: нужен для истории и PGN.
 function showResultModal(text, outcome = 'draw', reason = 'over', winner = null, { revealMs = 0 } = {}) {
-  saveFinishedGame(buildGameRecord({ reason, winner, summary: text }));
+  clearPendingRatedGame(); // доиграна — брошенной не считается
+  const ratingEl = $id('resultRating');
+  ratingEl.textContent = '';
+  ratingEl.classList.add('hidden');
+  const savedForGame = state.gameStartedAt;
+  saveFinishedGame(buildGameRecord({ reason, winner, summary: text })).then((change) => {
+    if (!change || savedForGame !== state.gameStartedAt) return;
+    ratingEl.textContent = formatRatingChange(change);
+    ratingEl.dataset.trend = change.delta > 0 ? 'up' : change.delta < 0 ? 'down' : 'flat';
+    ratingEl.classList.remove('hidden');
+  });
   state.resultText = text;
   updateStatus(); // пишет итог под доской
   if (outcome === 'player_win') playSound('win');

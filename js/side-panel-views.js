@@ -250,6 +250,7 @@ async function initSupabaseSession() {
     switchAchievementsUser(session.user.id);
     await fetchProfileFromSupabase(session.user.id);
     renderMenuProfile();
+    settlePendingRatedGame(); // вкладку закрыли посреди рейтинговой партии
   }
   if (session && AUTH_RECOVERY_IN_URL) openResetPasswordForm();
   handleAuthLinkError();

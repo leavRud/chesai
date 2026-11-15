@@ -341,8 +341,8 @@ const Achievements = (function () {
       events: ['gameEnd'], check: ({ payload }) => payload.mode === 'ai' && payload.outcome === 'win' && payload.skillLevel > 8 && payload.skillLevel < 20 },
     { id: 'beat_hard', category: 'stockfish', icon: 'robot', reward: 50, name: 'Сложный уровень', desc: 'Победить сложный уровень.',
       events: ['gameEnd'], check: ({ payload }) => payload.mode === 'ai' && payload.outcome === 'win' && payload.skillLevel >= 20 },
-    { id: 'rating_1500', category: 'stockfish', icon: 'trending-up', reward: 7, name: 'Рейтинг', desc: 'Достичь предполагаемого Elo 1500.',
-      events: ['analysis'], check: ({ payload }) => payload.playerElo >= 1500 },
+    { id: 'rating_1500', category: 'stockfish', icon: 'trending-up', reward: 7, name: 'Рейтинг', desc: 'Достичь рейтинга 1500.',
+      events: ['rating'], check: ({ payload }) => payload.elo >= 1500 },
     { id: 'perfect_game', category: 'stockfish', icon: 'diamond', reward: 15, name: 'Идеальная партия', desc: 'Качество партии выше 95%.',
       events: ['analysis'], check: ({ payload }) => payload.playerAccuracy >= 95 },
 

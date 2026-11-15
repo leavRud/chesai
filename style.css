@@ -4101,3 +4101,8 @@ html.is-vk .chat-quota-buy { display: none !important; }
 .avatar-crop-view:active { cursor: grabbing; }
 .avatar-crop-img { position: absolute; top: 0; left: 0; max-width: none; transform-origin: 0 0; user-select: none; -webkit-user-drag: none; }
 .avatar-crop-zoom { width: min(280px, 100%); accent-color: var(--gold); margin-bottom: 4px; }
+
+/* Изменение рейтинга в окне итога (рейтинг считает база по результату партии) */
+.result-rating { margin: -4px 0 14px; font-size: 14px; font-weight: 700; color: var(--text-muted); }
+.result-rating[data-trend="up"] { color: #5CB87A; }
+.result-rating[data-trend="down"] { color: #E05555; }

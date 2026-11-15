@@ -62,19 +62,53 @@ function moveAccuracyFromWinDrop(drop) {
   return clamp(103.1668 * Math.exp(-0.04354 * Math.max(0, drop)) - 3.1669, 0, 100);
 }
 
+// Для уровня игры оценку режем не на ±10, а на ±15 пешках, и мат дороже
+// любого материала: иначе зевки в уже решённой позиции и упущенный мат
+// выглядели «бесплатными». Потерю одного хода ограничиваем 6 пешками —
+// один зевок ферзя не должен один перевешивать всю партию.
+// Мат в N тоже различаем: «мат в 9» → «мат в 4» у проигрывающего — это
+// отданная фигура (28.Be1?? Qxe1), а не «ничего не изменилось».
+const LEVEL_EVAL_CAP = 1200;
+const LEVEL_MATE_BASE = 1500;
+const LEVEL_MOVE_LOSS_CAP = 600;
+function levelScore(score) {
+  if (score == null) return null;
+  if (score > 50000) return LEVEL_MATE_BASE - Math.min(100000 - score, 25) * 10; // мат в N за нас: 1250…1490
+  if (score < -50000) return -(LEVEL_MATE_BASE - Math.min(score + 100000, 25) * 10); // мат в N нам
+  return clamp(score, -LEVEL_EVAL_CAP, LEVEL_EVAL_CAP);
+}
+
 // before/after — записи анализа (score относительно стороны, чей ход в FEN).
-function buildMoveItem(move, ply, fenBefore, fenAfter, before, after) {
+// flags.book — ход по дебютной теории, flags.forced — единственный ход:
+// оба ничего не говорят о силе игрока и в точность и уровень не идут.
+function buildMoveItem(move, ply, fenBefore, fenAfter, before, after, flags = {}) {
   const whiteBefore = scoreAbsoluteWhite(before, fenBefore);
   const whiteAfter = scoreAbsoluteWhite(after, fenAfter);
   const sign = move.color === 'w' ? 1 : -1;
   const capBefore = whiteBefore == null ? null : cappedCp(whiteBefore) * sign;
   const capAfter = whiteAfter == null ? null : cappedCp(whiteAfter) * sign;
   const known = capBefore != null && capAfter != null;
-  const loss = known ? Math.max(0, capBefore - capAfter) : 0;
+  // Сыгран лучший ход движка — потери нет по определению. Разница оценок
+  // «до» и «после» здесь — только шум от разной глубины счёта.
+  const playedBest = !!(before && before.bestMove && before.bestMove.slice(0, 4) === move.from + move.to);
+  const loss = known && !playedBest ? Math.max(0, capBefore - capAfter) : 0;
   const winBefore = capBefore != null ? winChance(capBefore) : null;
   const winAfter = capAfter != null ? winChance(capAfter) : null;
-  const winDrop = known ? Math.max(0, winBefore - winAfter) : 0;
-  const classification = known ? classifyWinDrop(winDrop) : 'ok';
+  const winDrop = known && !playedBest ? Math.max(0, winBefore - winAfter) : 0;
+  let classification = known ? classifyWinDrop(winDrop) : 'ok';
+  // Был форсированный мат, а после хода его нет: в выигранной позиции шансы
+  // почти не меняются, но это всё равно промах.
+  const mateBefore = whiteBefore != null && whiteBefore * sign > 50000;
+  const mateAfter = whiteAfter != null && whiteAfter * sign > 50000;
+  const missedMate = known && !playedBest && mateBefore && !mateAfter;
+  if (missedMate && classification === 'ok') classification = 'inaccuracy';
+  const lb = whiteBefore == null ? null : levelScore(whiteBefore * sign);
+  const la = whiteAfter == null ? null : levelScore(whiteAfter * sign);
+  const levelLoss = known && !playedBest ? Math.min(LEVEL_MOVE_LOSS_CAP, Math.max(0, lb - la)) : 0;
+  // Ход в уже решённой позиции идёт в уровень с меньшим весом, но идёт
+  const decidedness = known ? Math.min(Math.abs(lb), Math.abs(la)) : LEVEL_EVAL_CAP;
+  const counts = known && !flags.book && !flags.forced;
+  const levelWeight = counts ? clamp((1000 - decidedness) / 300, 0.25, 1) : 0;
   return {
     move, ply, fenBefore, fenAfter,
     bestMove: before && before.bestMove || null,
@@ -91,7 +125,11 @@ function buildMoveItem(move, ply, fenBefore, fenAfter, before, after) {
     delta: move.color === 'w' ? -loss : loss, // сохранено для обратной совместимости (achievements.js)
     classification,
     critical: classification === 'mistake' || classification === 'blunder',
-    informative: known && (Math.abs(capBefore) < DECIDED_EVAL || Math.abs(capAfter) < DECIDED_EVAL),
+    informative: counts,
+    decided: known && Math.abs(capBefore) >= DECIDED_EVAL && Math.abs(capAfter) >= DECIDED_EVAL,
+    book: !!flags.book,
+    forced: !!flags.forced,
+    playedBest, missedMate, levelLoss, levelWeight,
   };
 }
 
@@ -463,41 +501,75 @@ function knownSideElo(color) {
   return null;
 }
 
-// Уровень игры в этой партии. Считаем только по ходам, сделанным, пока
-// партия не была решена. Если таких ходов мало, у соперника с известной
-// силой оценка подтягивается к его рейтингу: одна короткая партия против
-// зевающего игрока не превращает новичка в гроссмейстера.
+// Уровень игры в этой партии — по средней потере за ход (взвешенной: ходы
+// в уже решённой позиции весят меньше, книжные и единственные ходы не идут).
+// К заявленному рейтингу соперника и к рейтингу аккаунта больше не
+// подтягиваем: разбор показывает, как сыграно, а заявленное — рядом.
 const ELO_MIN_MOVES = 3;
-const ELO_MIN_RATED_MOVES = 10; // столько ходов игрока нужно, чтобы партия изменила рейтинг аккаунта
-const ELO_PRIOR_WEIGHT = 6;
-function estimateSideElo(items, prior) {
-  const informative = items.filter(m => m.informative);
-  const n = informative.length;
-  if (n < ELO_MIN_MOVES) return { elo: prior, raw: null, moves: n };
-  const raw = eloFromAvgCpl(avg(informative.map(m => m.loss)));
-  const elo = prior == null ? raw : Math.round((raw * n + prior * ELO_PRIOR_WEIGHT) / (n + ELO_PRIOR_WEIGHT));
-  return { elo, raw, moves: n };
+const ELO_MIN_RATED_MOVES = 10; // с этого числа ходов уровень показывается в разборе
+function estimateSideElo(items) {
+  const counted = items.filter(m => m.informative && m.levelWeight > 0);
+  const n = counted.length;
+  if (n < ELO_MIN_MOVES) return { elo: null, moves: n };
+  const weight = counted.reduce((sum, m) => sum + m.levelWeight, 0);
+  const avgLoss = counted.reduce((sum, m) => sum + m.levelLoss * m.levelWeight, 0) / weight;
+  return { elo: eloFromAvgCpl(avgLoss), avgLoss, moves: n };
 }
 
-// Сила игрока заранее не известна, но рейтинг аккаунта — лучшая догадка.
-// Без неё пять точных дебютных ходов давали «уровень ~2300», и рейтинг
-// прыгал на сотни очков даже за сданную партию.
-function playerRatingAnchor(color) {
-  if (state.mode === 'friend' || color !== state.playerColor) return null;
-  const acc = typeof getAccount === 'function' ? getAccount() : null;
-  return acc && Number.isFinite(acc.elo) ? acc.elo : null;
+// Точность партии — как на lichess: среднее из взвешенного по «остроте»
+// позиции и гармонического среднего точностей ходов. Простое среднее
+// завышало точность: десяток лёгких ходов прятал один зевок.
+function gameAccuracy(items) {
+  const scored = items.filter(m => m.accuracy != null && !m.book && !m.forced);
+  if (!scored.length) return null;
+  const wSum = scored.reduce((sum, m) => sum + (m.volatility || 1), 0);
+  const weighted = scored.reduce((sum, m) => sum + m.accuracy * (m.volatility || 1), 0) / wSum;
+  const harmonic = scored.length / scored.reduce((sum, m) => sum + 1 / Math.max(m.accuracy, 1), 0);
+  return (weighted + harmonic) / 2;
+}
+
+// Вес хода по «остроте»: разброс шансов белых в окне вокруг хода (lichess).
+function attachVolatility(items) {
+  if (!items.length) return;
+  const wins = [items[0].move.color === 'w' ? items[0].winBefore : 100 - items[0].winBefore];
+  items.forEach(m => wins.push(m.winAfter == null ? wins[wins.length - 1] : (m.move.color === 'w' ? m.winAfter : 100 - m.winAfter)));
+  const size = clamp(Math.floor(wins.length / 10), 2, 8);
+  const windows = [];
+  for (let i = 0; i < size - 2; i++) windows.push(wins.slice(0, size));
+  for (let i = 0; i + size <= wins.length; i++) windows.push(wins.slice(i, i + size));
+  items.forEach((m, i) => {
+    const w = windows[Math.min(i, windows.length - 1)] || [];
+    const mean = avg(w);
+    const sd = Math.sqrt(avg(w.map(x => (x - mean) ** 2)));
+    m.volatility = clamp(sd, 0.5, 12);
+  });
+}
+
+// Какие ходы партии сыграны по дебютной книге (js/openings.js): начало
+// партии совпадает с одним из вариантов книги.
+function bookPliesCount(moves) {
+  const sans = moves.map(m => stripSanMarks(m.san));
+  let best = 0;
+  for (const opening of Object.values(OPENING_BOOK)) {
+    for (const line of opening.lines) {
+      let k = 0;
+      while (k < line.length && k < sans.length && line[k] === sans[k]) k++;
+      if (k > best) best = k;
+    }
+  }
+  return best;
 }
 
 function sideStats(items, color) {
   const own = items.filter(m => m.move.color === color);
-  const scored = own.filter(m => m.accuracy != null);
+  const counted = own.filter(m => !m.book && !m.forced);
   const count = (cls) => own.filter(m => m.classification === cls).length;
   const prior = knownSideElo(color);
-  const est = estimateSideElo(own, prior ?? playerRatingAnchor(color));
+  const est = estimateSideElo(own);
   return {
     moves: own.length,
-    accuracy: scored.length ? avg(scored.map(m => m.accuracy)) : 0,
-    avgCpl: avg(own.map(m => m.loss)),
+    accuracy: gameAccuracy(own) ?? 0,
+    avgCpl: avg(counted.map(m => m.loss)),
     inaccuracies: count('inaccuracy'),
     mistakes: count('mistake'),
     blunders: count('blunder'),
@@ -538,10 +610,13 @@ function pickWorstMove(items) {
 // уточнённого результата после фонового доуглубления (ТЗ п.2).
 function computeGameStats(fens, moves, evaluations) {
   const moveAnalysis = [];
+  const bookPlies = bookPliesCount(moves);
   for (let j = 0; j < moves.length; j++) {
     if (!evaluations[j]) continue;
-    moveAnalysis.push(buildMoveItem(moves[j], j, fens[j], fens[j + 1], evaluations[j], evaluations[j + 1]));
+    const flags = { book: j < bookPlies, forced: new Chess(fens[j]).moves().length === 1 };
+    moveAnalysis.push(buildMoveItem(moves[j], j, fens[j], fens[j + 1], evaluations[j], evaluations[j + 1], flags));
   }
+  attachVolatility(moveAnalysis);
   const white = sideStats(moveAnalysis, 'w');
   const black = sideStats(moveAnalysis, 'b');
 
@@ -635,10 +710,15 @@ async function refineGameAnalysis(runId, fens, moves, weakPc, baseDepth, critica
     }
     if (runId !== analysisRunId) return;
 
+    // Потеря хода — разность оценок «до» и «после». Если «до» досчитано в фоне
+    // до глубины 22, а «после» — до 14, разность — шум глубины, а не ошибка.
+    // Поэтому позицию «после» считаем не мельче, чем «до» минус один полуход.
     const evaluations = [];
     for (let i = 0; i < fens.length; i++) {
       if (runId !== analysisRunId) return;
-      const result = await analyzePosition(fens[i], { minDepth: baseDepth });
+      const prevDepth = i > 0 && evaluations[i - 1] ? evaluations[i - 1].depth || 0 : 0;
+      const minDepth = clamp(prevDepth - 1, baseDepth, criticalDepth);
+      const result = await analyzePosition(fens[i], { minDepth });
       evaluations.push(result);
     }
     if (runId !== analysisRunId) return;
@@ -652,13 +732,18 @@ async function refineGameAnalysis(runId, fens, moves, weakPc, baseDepth, critica
       try {
         const deep = await analyzePosition(item.fenBefore, { minDepth: criticalDepth });
         if (deep) { item.depth = deep.depth; item.bestMove = deep.bestMove; item.pv = deep.pv; }
+        // И позицию после хода — той же глубины, чтобы досчёт менял и оценку хода
+        await analyzePosition(item.fenAfter, { minDepth: criticalDepth - 1 });
         const candidates = await searchTopMoves(item.fenBefore, { movetime: weakPc ? 500 : 900, multipv: weakPc ? 2 : 3 });
         item.alternatives = describeCandidateMoves(item.fenBefore, candidates);
       } catch (e) { /* если доанализ не удался — оставляем базовый результат */ }
     }
     if (runId !== analysisRunId) return;
 
-    stats = computeGameStats(fens, moves, evaluations);
+    // Берём досчитанные оценки из кэша: раньше пересчёт шёл по старым, и
+    // глубокий счёт ошибок менял только показанный лучший ход, но не вердикт.
+    const refinedEvaluations = fens.map((fen, i) => analysisCache.get(fen) || evaluations[i]);
+    stats = computeGameStats(fens, moves, refinedEvaluations);
     stats.moveAnalysis.forEach((m) => {
       const refined = criticalItems.find(c => c.fenBefore === m.fenBefore && c.move.san === m.move.san);
       if (refined) { m.depth = refined.depth; m.bestMove = refined.bestMove; m.pv = refined.pv; m.alternatives = refined.alternatives; }
@@ -687,17 +772,15 @@ async function refineGameAnalysis(runId, fens, moves, weakPc, baseDepth, critica
     // повторные разборы двигали бы рейтинг и копили достижения за анализ.
     if (state.isReview) return;
     if (window.Achievements) {
-      const evaluationsAbsoluteWhite = fens.map((fen, i) => scoreAbsoluteWhite(evaluations[i], fen));
+      const evaluationsAbsoluteWhite = fens.map((fen, i) => scoreAbsoluteWhite(refinedEvaluations[i], fen));
       window.Achievements.trackAnalysis({
         accuracyWhite: stats.accuracyWhite, accuracyBlack: stats.accuracyBlack,
         eloWhite: stats.eloWhite, eloBlack: stats.eloBlack,
         moveAnalysis: stats.moveAnalysis, evaluationsAbsoluteWhite,
       });
     }
-    // Рейтинг меняет только партия, где игрок сделал достаточно ходов до того,
-    // как всё решилось: иначе сдача после дебюта поднимала рейтинг.
-    const mine = state.playerColor === 'w' ? stats.white : stats.black;
-    if (mine.eloMoves >= ELO_MIN_RATED_MOVES) updateAccountEloFromGame(mine.elo);
+    // Рейтинг аккаунта разбор больше не трогает: его считает база по
+    // результату партии (см. applyRatedGameResult в account.js).
   } catch (error) {
     console.error('Ошибка фонового уточнения анализа:', error);
   }
@@ -715,6 +798,7 @@ function eloCell(side) {
   // По трём-пяти дебютным ходам «уровень ~1900» — шум: оценку показываем с того же
   // числа ходов, с которого партия влияет на рейтинг. У соперника с известной силой — его рейтинг.
   if (side.elo == null || side.eloMoves < ELO_MIN_RATED_MOVES) {
+    // Мало ходов, чтобы судить об уровне: у соперника с известной силой — его рейтинг
     if (side.knownElo != null) return `≈${side.knownElo}<small>${t('заявлено')}</small>`;
     return `<span class="muted">${t('мало ходов')}</span>`;
   }
@@ -764,7 +848,7 @@ function renderAnalysis(stats, totalPly, comment, { refining = false } = {}) {
   if (refining) {
     html += `<p class="analysis-disclaimer analysis-refining">${achievementIconSvg('hourglass')}${t('Быстрый предварительный результат — Stockfish продолжает углублять анализ в фоне, значения скоро уточнятся.')}</p>`;
   }
-  html += `<p class="analysis-disclaimer">${t('Уровень считается только по ходам, сделанным до того, как партия была решена; у соперника с известной силой он учитывает и заявленный рейтинг. Это грубая оценка, не официальный рейтинг.')}</p>`;
+  html += `<p class="analysis-disclaimer">${t('Уровень — по средней потере за ход: ходы в уже решённой позиции весят меньше, дебютная теория и единственные ходы не считаются. Это грубая оценка этой партии; рейтинг аккаунта меняется по результату и силе соперника.')}</p>`;
   content.innerHTML = html;
 
   content.querySelectorAll('.move-card').forEach(card => {

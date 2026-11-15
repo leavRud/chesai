@@ -118,24 +118,69 @@ function buildGameRecord({ reason, winner, summary }) {
   return rec;
 }
 
+// Возвращает изменение рейтинга ({ before, after, delta }) или null:
+// рейтинг меняет база при вставке партии (см. applyRatedGameResult в account.js).
 async function saveFinishedGame(rec) {
   lastGameRecord = rec;
-  if (!rec.moves) return; // партия без ходов (сдача сразу) — хранить нечего
+  return insertGameRecord(rec);
+}
+
+async function insertGameRecord(rec) {
+  if (!rec.moves) return null; // партия без ходов (сдача сразу) — хранить нечего
   const userId = await currentUserId();
   if (userId) {
-    const { player_name, id, ...row } = rec;
-    const { data, error } = await sb.from('game_history').insert(row).select('id').single();
+    const { player_name, id, gameKey, uid, ...row } = rec;
+    const { data, error } = await sb.from('game_history').insert(row).select('id, player_elo, rating_delta').single();
     if (!error) {
       rec.id = data.id;
       invalidateAccountGameStats();
       onGameSavedForStreak();
       if (getCurrentView() === 'games') renderGamesView();
-      return;
+      return applyRatedGameResult(data);
     }
     console.warn('Партия не сохранилась в аккаунт, оставляем в браузере:', error.message);
   }
   writeLocalGames([rec, ...readLocalGames()]);
   if (getCurrentView() === 'games') renderGamesView();
+  return null;
+}
+
+/* ---- Брошенная партия ----
+   Рейтинговую партию (Stockfish или персонаж, вошли в аккаунт), в которой
+   игрок сделал хотя бы 2 хода, держим в браузере готовой записью «поражение».
+   Доиграли — запись стирается. Ушли с партии, начали новую, закрыли вкладку —
+   при следующем старте партии или загрузке приложения запись уходит в базу.
+   Раньше от проигрыша можно было уйти, просто не доиграв. */
+const PENDING_RATED_KEY = 'chessPendingRatedGame';
+const ABANDON_MIN_OWN_MOVES = 2;
+
+function markPendingRatedGame() {
+  const acc = getAccount();
+  if (!acc || !acc.uid || state.isReview || state.isGameOver) return;
+  if (state.mode !== 'ai' && state.mode !== 'characters') return;
+  const own = state.game.history({ verbose: true }).filter(m => m.color === state.playerColor).length;
+  if (own < ABANDON_MIN_OWN_MOVES) return;
+  const rec = buildGameRecord({ reason: 'abandon', winner: state.aiColor, summary: t('Партия брошена — засчитано поражение.') });
+  rec.uid = acc.uid;
+  rec.gameKey = state.gameStartedAt;
+  try { localStorage.setItem(PENDING_RATED_KEY, JSON.stringify(rec)); } catch (e) { /* без хранилища брошенную партию не засчитать */ }
+}
+
+function clearPendingRatedGame() {
+  try { localStorage.removeItem(PENDING_RATED_KEY); } catch (e) { /* ignore */ }
+}
+
+async function settlePendingRatedGame() {
+  let rec = null;
+  try { rec = JSON.parse(localStorage.getItem(PENDING_RATED_KEY) || 'null'); } catch (e) { rec = null; }
+  if (!rec) return;
+  clearPendingRatedGame(); // сразу: второй вызов не должен записать партию дважды
+  const userId = await currentUserId();
+  if (!userId || userId !== rec.uid) return; // вышли из аккаунта или это чужая партия
+  const change = await insertGameRecord(rec);
+  showToast(change
+    ? t('Незаконченная партия засчитана поражением. {rating}', { rating: formatRatingChange(change) })
+    : t('Незаконченная партия засчитана поражением.'));
 }
 
 /* ---- Чтение и удаление ---- */
@@ -229,7 +274,7 @@ let gamesViewShown = 0;
 let gamesViewSignedIn = false;
 
 const GAME_REASON_LABEL = {
-  mate: t('мат'), resign: t('сдача'), time: t('время'), stalemate: t('пат'), draw: t('ничья'), over: t('конец партии'),
+  mate: t('мат'), resign: t('сдача'), time: t('время'), stalemate: t('пат'), draw: t('ничья'), over: t('конец партии'), abandon: t('брошена'),
 };
 
 function gameResultBadge(rec) {

@@ -69,39 +69,35 @@ function ensureEloHistory(acc) {
   return acc.eloHistory;
 }
 
-// Обновляем рейтинг аккаунта после анализа партии (плавное скользящее среднее)
-async function updateAccountEloFromGame(playerElo) {
-  // «Против друга» (friend) не участвует в рейтинге: не начисляем и не пишем в историю.
-  if (state.mode === 'friend' || state.mode === 'online') return;
-
+/* ---- Рейтинг аккаунта ----
+   Считает база (триггер apply_game_rating, миграция 20261115140000) при
+   сохранении законченной партии против Stockfish или персонажа: классический
+   Elo по результату и силе соперника. Браузер только показывает итог —
+   раньше он сам считал рейтинг по точности и только после «Разобрать партию». */
+function applyRatedGameResult(row) {
+  if (!row || row.rating_delta == null || !Number.isFinite(row.player_elo)) return null;
   const acc = getAccount();
-  if (!acc || !Number.isFinite(playerElo)) return;
-
+  if (!acc) return null;
+  const before = row.player_elo;
+  const after = before + row.rating_delta;
   const history = ensureEloHistory(acc);
-
-  // Защита от дублей: повторный вызов для той же партии (например, повторное
-  // «Обновить анализ») не должен добавлять вторую точку в историю.
-  const gameKey = (state.game && typeof state.game.pgn === 'function') ? state.game.pgn() : null;
-  if (gameKey && acc.lastEloGameKey === gameKey) return;
-
-  const base = Number.isFinite(acc.elo) ? acc.elo : 1200;
-  const newElo = Math.round(base * 0.7 + playerElo * 0.3);
-  const delta = newElo - base;
-  acc.elo = newElo;
-
+  acc.elo = after;
   const lastPoint = history[history.length - 1];
-  history.push({ n: lastPoint.n + 1, elo: newElo, delta, ts: Date.now() });
+  history.push({ n: lastPoint.n + 1, elo: after, delta: row.rating_delta, ts: Date.now() });
   if (history.length > ELO_HISTORY_LIMIT) {
     acc.eloHistory = [history[0], ...history.slice(-(ELO_HISTORY_LIMIT - 1))];
   }
-  if (gameKey) acc.lastEloGameKey = gameKey;
-
   saveAccount(acc);
   renderMenuProfile();
   if (getCurrentView() === 'stats') renderStatsView();
+  if (getCurrentView() === 'profile') renderProfileView();
+  window.Achievements?.track?.('rating', { elo: after });
+  return { before, after, delta: row.rating_delta };
+}
 
-  const { data: { user } } = await sb.auth.getUser();
-  if (user) syncProfileToSupabase(user.id, { elo: acc.elo });
+function formatRatingChange(change) {
+  const sign = change.delta > 0 ? '+' : change.delta < 0 ? '−' : '±';
+  return t('Рейтинг {before} → {after} ({delta})', { before: change.before, after: change.after, delta: `${sign}${Math.abs(change.delta)}` });
 }
 
 function renderMenuProfile() {
