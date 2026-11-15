@@ -99,3 +99,32 @@ a { color: var(--accent); }
 }
 .plan-buy:hover, .plan-buy:focus-visible { filter: brightness(1.08); }
 .plan-buy.is-secondary { background: transparent; color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+
+/* Посадочные страницы под поисковые запросы (shakhmaty-*.html, razbor-partii.html) */
+.cta {
+  display: inline-block;
+  margin: 8px 0 4px;
+  padding: 13px 26px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 700;
+  font-size: 16px;
+  text-decoration: none;
+}
+.cta:hover, .cta:focus-visible { filter: brightness(1.08); }
+.cta-note { color: var(--muted); font-size: 14px; margin-top: 6px; }
+.steps { counter-reset: step; list-style: none; padding: 0; }
+.steps li { counter-increment: step; position: relative; padding-left: 40px; margin-bottom: 12px; }
+.steps li::before {
+  content: counter(step);
+  position: absolute; left: 0; top: 1px;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent);
+  font-weight: 700; font-size: 14px; text-align: center; line-height: 26px;
+}
+.facts { width: 100%; border-collapse: collapse; margin: 8px 0 16px; }
+.facts th, .facts td { text-align: left; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.facts th { color: var(--muted); font-weight: 600; font-size: 14px; width: 40%; }
+.related { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0 0; padding: 0; list-style: none; }
+.related a { font-weight: 600; }

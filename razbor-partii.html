@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Разбор шахматной партии онлайн с ИИ — ошибки и лучшие ходы | chesai</title>
+<meta name="description" content="Бесплатный разбор шахматной партии: Stockfish проверяет каждый ход и отмечает неточности, ошибки и зевки, а ИИ-помощник объясняет любой ход простым языком." />
+<link rel="canonical" href="https://chesai.ru/razbor-partii.html" />
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48" />
+<link rel="icon" href="assests/icon-32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="assests/icon-180.png" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="chesai" />
+<meta property="og:locale" content="ru_RU" />
+<meta property="og:url" content="https://chesai.ru/razbor-partii.html" />
+<meta property="og:title" content="Разбор шахматной партии с ИИ" />
+<meta property="og:description" content="Бесплатный разбор шахматной партии: Stockfish проверяет каждый ход и отмечает неточности, ошибки и зевки, а ИИ-помощник объясняет любой ход простым языком." />
+<meta property="og:image" content="https://chesai.ru/assests/og-image.jpg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebPage",
+      "@id": "https://chesai.ru/razbor-partii.html#page",
+      "url": "https://chesai.ru/razbor-partii.html",
+      "name": "Разбор шахматной партии онлайн — с объяснениями от ИИ",
+      "description": "Бесплатный разбор шахматной партии: Stockfish проверяет каждый ход и отмечает неточности, ошибки и зевки, а ИИ-помощник объясняет любой ход простым языком.",
+      "inLanguage": "ru",
+      "isPartOf": {
+        "@id": "https://chesai.ru/#website"
+      },
+      "about": {
+        "@id": "https://chesai.ru/#app"
+      },
+      "author": {
+        "@type": "Person",
+        "@id": "https://chesai.ru/#founder",
+        "name": "Максим Чебаков"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "@id": "https://chesai.ru/#organization",
+        "name": "chesai",
+        "url": "https://chesai.ru/"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "chesai",
+          "item": "https://chesai.ru/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Разбор шахматной партии онлайн — с объяснениями от ИИ",
+          "item": "https://chesai.ru/razbor-partii.html"
+        }
+      ]
+    }
+  ]
+}
+</script>
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem('chessTheme');
+    if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark');
+  } catch (e) {}
+})();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="legal.css" />
+</head>
+<body>
+<div class="page">
+  <nav class="legal-nav" aria-label="Режимы игры">
+    <a class="legal-logo" href="./">chesai</a>
+    <a href="shakhmaty-s-kompyuterom.html">С компьютером</a>
+    <a href="shakhmaty-s-drugom.html">С другом</a>
+    <a href="shakhmaty-s-nejrosetyu.html">С нейросетью</a>
+    <a href="razbor-partii.html" aria-current="page">Разбор партии</a>
+  </nav>
+
+  <main>
+    <h1>Разбор шахматной партии онлайн — с объяснениями от ИИ</h1>
+    <p class="lede">После каждой партии на chesai движок Stockfish проверяет все ходы и показывает, где была ошибка и как было сильнее. А ИИ-помощник объясняет любой ход простыми словами — без таблиц оценок и вариантов на десять ходов вперёд.</p>
+    <a class="cta" href="./?mode=ai">Сыграть и разобрать партию</a>
+    <p class="cta-note">Разбор движком бесплатный и работает без регистрации.</p>
+
+    <h2>Что показывает разбор</h2>
+    <ul>
+      <li><b>Оценку каждого хода:</b> лучший ход, хороший ход, неточность, ошибка или зевок.</li>
+      <li><b>Точность игры</b> — насколько ходы были близки к лучшим.</li>
+      <li><b>Лучший ход движка</b> стрелкой на доске там, где вы сыграли иначе.</li>
+      <li><b>Ваш лучший ход партии</b> — чтобы было чем гордиться.</li>
+    </ul>
+
+    <h2>Объяснение простым языком</h2>
+    <p>Нажмите на любой ход в разборе — откроется «Анализ хода». ИИ-помощник расскажет, что этот ход меняет в позиции, почему он слабый или сильный и какой план был лучше. Вопросы можно задавать и в чате рядом с доской. После входа через Google или VK каждый день даётся 5 бесплатных вопросов.</p>
+
+    <h2>Какие партии можно разобрать</h2>
+    <p>Разбор работает для партий, сыгранных на chesai: против Stockfish, против персонажей и с другом. Сыгранные партии сохраняются в разделе «Мои партии» — к старой партии можно вернуться и разобрать её снова. Любую партию можно скачать в формате PGN, чтобы открыть в другой программе.</p>
+
+    <h2>Как получить разбор</h2>
+    <ol class="steps">
+      <li>Сыграйте партию на <a href="./">chesai.ru</a> — с компьютером, персонажем или другом.</li>
+      <li>Когда партия закончится, в окне с итогом появится разбор.</li>
+      <li>Пройдите по ходам и нажмите на тот, который хочется понять.</li>
+    </ol>
+
+    <h2>Вопросы</h2>
+    <h3>Это бесплатно?</h3>
+    <p>Разбор движком бесплатный. Объяснения ИИ-помощника — 5 бесплатных вопросов в день после входа, дальше по <a href="tarify.html">тарифам</a>.</p>
+    <h3>Можно ли загрузить партию, сыгранную в другом месте?</h3>
+    <p>Пока нет: разбираются партии, сыгранные на chesai.</p>
+
+    <h2>Другие режимы</h2>
+    <ul class="related">
+      <li><a href="shakhmaty-s-kompyuterom.html">С компьютером</a></li>
+      <li><a href="shakhmaty-s-drugom.html">С другом</a></li>
+      <li><a href="shakhmaty-s-nejrosetyu.html">С нейросетью</a></li>
+      <li><a href="./">Главная chesai</a></li>
+    </ul>
+  </main>
+
+  <footer class="legal-footer">
+    <span>chesai делает независимый разработчик Максим Чебаков · <a href="contacts.html">Контакты</a> · <a href="https://github.com/leavRud/chessai">GitHub</a></span>
+    <span><a href="tarify.html">Тарифы</a> · <a href="oferta.html">Публичная оферта</a> · <a href="privacy.html">Политика конфиденциальности</a></span>
+  </footer>
+</div>
+<script src="js/analytics.js"></script>
+</body>
+</html>

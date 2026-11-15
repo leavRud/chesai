@@ -1,11 +1,12 @@
 Сторонние библиотеки chessai. Версия и источник — в имени файла и ниже.
 
-jquery-3.5.1.min.js — https://code.jquery.com (лицензия MIT, указана в самом файле)
+jquery-3.7.1.min.js — https://code.jquery.com (лицензия MIT, указана в самом файле)
 chessboard-1.0.0.min.js/.css — https://chessboardjs.com (лицензия MIT, указана в файле)
 chess-0.10.3.min.js — https://github.com/jhlywa/chess.js
 supabase-js-2.118.0.js — https://github.com/supabase/supabase-js
 vk-bridge-2.15.11.min.js — https://github.com/VKCOM/vk-bridge (лицензия MIT, © VK)
 gifenc-1.0.3.min.js — https://github.com/mattdesl/gifenc (лицензия MIT, © 2017 Matt DesLauriers)
+mp4-muxer-5.2.2.js — https://github.com/Vanilagy/mp4-muxer (лицензия MIT, © 2023 Vanilagy)
 
 === chess.js ===
 

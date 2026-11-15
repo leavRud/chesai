@@ -76,6 +76,19 @@ document.querySelectorAll('.home-mode-btn').forEach(btn => {
   });
 });
 
+// Ссылка с посадочной страницы (chesai.ru/?mode=friend): нужный режим уже выбран.
+// Параметр убираем из адреса, чтобы он не мешал ссылкам на партию (?g=) и персонажа (?c=).
+(function applyLinkedMode() {
+  const params = new URLSearchParams(location.search);
+  const mode = params.get('mode');
+  if (!mode) return;
+  const btn = document.querySelector(`.home-mode-btn[data-mode="${CSS.escape(mode)}"]`);
+  if (btn && !btn.classList.contains('is-active')) btn.click();
+  params.delete('mode');
+  const query = params.toString();
+  history.replaceState(history.state, '', location.pathname + (query ? `?${query}` : '') + location.hash);
+})();
+
 $id('homePlayText').addEventListener('click', () => {
   playSound('ui');
   state.mode = homeSelectedMode;

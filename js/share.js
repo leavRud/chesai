@@ -601,10 +601,11 @@ function drawGifFrame(ctx, frame, opts) {
 
 const nextTick = () => new Promise(resolve => setTimeout(resolve, 0));
 
-async function buildGameGif(rec) {
+// Общая подготовка для GIF и MP4: позиции, шрифты, картинки фигур и холст.
+// draw(i, final) рисует кадр i на canvas; final — плашка итога на последнем кадре.
+async function prepareGameFrames(rec) {
   const frames = gifPositions(rec.pgn);
   if (frames.length < 2) throw new Error('нет ходов');
-  const { GIFEncoder, quantize, applyPalette } = await loadGifenc();
   const display = cssVar('--font-display', 'Georgia, serif');
   const body = cssVar('--font-body', 'sans-serif');
   try {
@@ -627,8 +628,16 @@ async function buildGameGif(rec) {
     total: frames.length - 1,
   };
   const finalTitle = describeResultForShare(rec).title;
+  const draw = (i, final = '') => drawGifFrame(ctx, frames[i], { ...opts, index: i, final });
+  const moveMs = clamp(Math.round(GIF_TOTAL_MS / (frames.length - 1)), GIF_MOVE_MS[0], GIF_MOVE_MS[1]);
+  return { frames, canvas, ctx, draw, finalTitle, moveMs };
+}
+
+async function buildGameGif(rec) {
+  const { GIFEncoder, quantize, applyPalette } = await loadGifenc();
+  const { frames, ctx, draw, finalTitle, moveMs } = await prepareGameFrames(rec);
   const render = (i, final = '') => {
-    drawGifFrame(ctx, frames[i], { ...opts, index: i, final });
+    draw(i, final);
     return ctx.getImageData(0, 0, GIF_W, GIF_H).data;
   };
 
@@ -640,7 +649,6 @@ async function buildGameGif(rec) {
   const transparentIndex = palette.length;
   palette.push([0, 0, 0]);
 
-  const moveMs = clamp(Math.round(GIF_TOTAL_MS / (frames.length - 1)), GIF_MOVE_MS[0], GIF_MOVE_MS[1]);
   const gif = GIFEncoder();
   let prev = null;
   const writeFrame = (data, delay) => {
@@ -663,7 +671,110 @@ async function buildGameGif(rec) {
   return new Blob([gif.bytes()], { type: 'image/gif' });
 }
 
+/* =========================================================================
+   MP4 С ПАРТИЕЙ — для отправки в мессенджеры.
+   Telegram, WhatsApp и VK, получив GIF через системное меню «Поделиться»,
+   часто отправляют его как обычную картинку — остаётся один кадр. Короткое
+   видео без звука они показывают как анимацию. Кодирует WebCodecs (H.264),
+   в контейнер собирает mp4-muxer (vendor/, грузится по нажатию). Где
+   VideoEncoder нет, остаётся GIF.
+   ========================================================================= */
+const VIDEO_CODECS = ['avc1.42001f', 'avc1.4d001f', 'avc1.640028']; // H.264 Baseline, Main, High
+const VIDEO_KEYFRAME_EVERY = 20;
+
+let mp4MuxerLoading = null;
+function loadMp4Muxer() {
+  if (window.Mp4Muxer) return Promise.resolve(window.Mp4Muxer);
+  if (!mp4MuxerLoading) {
+    mp4MuxerLoading = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'vendor/mp4-muxer-5.2.2.js';
+      s.onload = () => (window.Mp4Muxer ? resolve(window.Mp4Muxer) : reject(new Error('mp4-muxer')));
+      s.onerror = () => { mp4MuxerLoading = null; reject(new Error('mp4-muxer не загрузился')); };
+      document.head.appendChild(s);
+    });
+  }
+  return mp4MuxerLoading;
+}
+
+async function pickVideoConfig() {
+  if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') return null;
+  for (const codec of VIDEO_CODECS) {
+    const config = { codec, width: GIF_W, height: GIF_H, bitrate: 1_200_000, framerate: 30, avc: { format: 'avc' } };
+    try {
+      const support = await VideoEncoder.isConfigSupported(config);
+      if (support.supported) return support.config;
+    } catch (e) { /* пробуем следующий профиль */ }
+  }
+  return null;
+}
+
+// Возвращает Blob с MP4 или null, если браузер не умеет кодировать видео.
+async function buildGameVideo(rec) {
+  const config = await pickVideoConfig();
+  if (!config) return null;
+  const { Muxer, ArrayBufferTarget } = await loadMp4Muxer();
+  const { frames, canvas, draw, finalTitle, moveMs } = await prepareGameFrames(rec);
+
+  const target = new ArrayBufferTarget();
+  const muxer = new Muxer({ target, video: { codec: 'avc', width: GIF_W, height: GIF_H }, fastStart: 'in-memory' });
+  let encodeError = null;
+  const encoder = new VideoEncoder({
+    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    error: (e) => { encodeError = e; },
+  });
+  encoder.configure(config);
+
+  // Кадр держится столько же, сколько в гифке: метка времени и длительность в микросекундах
+  let timeMs = 0;
+  let count = 0;
+  const addFrame = async (durationMs) => {
+    const frame = new VideoFrame(canvas, { timestamp: timeMs * 1000, duration: durationMs * 1000 });
+    encoder.encode(frame, { keyFrame: count % VIDEO_KEYFRAME_EVERY === 0 });
+    frame.close();
+    timeMs += durationMs;
+    count++;
+    if (encoder.encodeQueueSize > 8) await new Promise(resolve => encoder.addEventListener('dequeue', resolve, { once: true }));
+  };
+  try {
+    for (let i = 0; i < frames.length; i++) {
+      draw(i);
+      await addFrame(i === 0 ? GIF_START_MS : moveMs);
+      if (encodeError) throw encodeError;
+    }
+    // mp4-muxer даёт последнему кадру длительность предыдущего, а не его собственную.
+    // Поэтому финал кладём двумя одинаковыми кадрами по половине: второй унаследует
+    // длительность первого, и плашка с итогом провисит весь GIF_END_MS.
+    draw(frames.length - 1, finalTitle);
+    await addFrame(GIF_END_MS / 2);
+    await addFrame(GIF_END_MS / 2);
+    await encoder.flush();
+    if (encodeError) throw encodeError;
+  } finally {
+    if (encoder.state !== 'closed') encoder.close();
+  }
+  muxer.finalize();
+  return new Blob([target.buffer], { type: 'video/mp4' });
+}
+
 let resultGifCache = null;
+
+// Видео — для меню «Поделиться», гифка — для скачивания и как запасной вариант
+async function getResultAnimation(rec, kind) {
+  if (!resultGifCache || resultGifCache.rec !== rec) resultGifCache = { rec };
+  const cache = resultGifCache;
+  if (kind === 'video') {
+    if (!('video' in cache)) {
+      try { cache.video = await buildGameVideo(rec); } catch (e) {
+        console.warn('Не удалось собрать MP4, отправим GIF:', e);
+        cache.video = null;
+      }
+    }
+    if (cache.video) return { blob: cache.video, name: 'chesai-partiya.mp4' };
+  }
+  if (!cache.gif) cache.gif = await buildGameGif(rec);
+  return { blob: cache.gif, name: 'chesai-partiya.gif' };
+}
 
 $id('resultGifBtn').addEventListener('click', async () => {
   const rec = lastGameRecord;
@@ -673,12 +784,13 @@ $id('resultGifBtn').addEventListener('click', async () => {
   const btn = $id('resultGifBtn');
   setBusy(btn, true);
   try {
-    if (!resultGifCache || resultGifCache.rec !== rec) {
-      showToast(t('Собираем гифку с партией…'));
-      resultGifCache = { rec, blob: await buildGameGif(rec) };
-    }
-    const { blob } = resultGifCache;
-    const file = new File([blob], 'chesai-partiya.gif', { type: 'image/gif' });
+    const cached = resultGifCache && resultGifCache.rec === rec;
+    if (!cached) showToast(t('Собираем гифку с партией…'));
+    // Меню «Поделиться» с файлами есть в основном на телефонах — там отправляем видео
+    const probe = new File([''], 'probe.mp4', { type: 'video/mp4' });
+    const canShareVideo = !!navigator.canShare?.({ files: [probe] });
+    const { blob, name } = await getResultAnimation(rec, canShareVideo ? 'video' : 'gif');
+    const file = new File([blob], name, { type: blob.type });
     const { text } = describeResultForShare(rec);
     const outcome = navigator.canShare?.({ files: [file] })
       ? await shareOrCopy({ title: 'chesai', text, url: SHARE_BASE_URL, files: [file] })
@@ -686,7 +798,7 @@ $id('resultGifBtn').addEventListener('click', async () => {
     if (outcome === 'blocked') {
       showToast(t('Гифка готова — нажмите ещё раз'));
     } else if (outcome === 'download' || outcome === 'copied' || outcome === 'failed') {
-      downloadBlob(blob, 'chesai-partiya.gif');
+      downloadBlob(blob, name);
       showToast(t('Гифка с партией сохранена'));
     }
     if (outcome !== 'cancelled' && outcome !== 'blocked') trackGoal('result_gif', { via: outcome, mode: rec.mode });

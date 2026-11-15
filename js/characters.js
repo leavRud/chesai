@@ -9,7 +9,8 @@ const charState = {
   lastInput: null, // { type: 'name'|'desc', value: string }
 };
 
-function openCharacterSetup() {
+// customOpen — сразу раскрыть форму своего персонажа (возврат с его карточки)
+function openCharacterSetup({ customOpen = false } = {}) {
   // Персонажей ведёт нейросеть, а она доступна только после входа.
   if (!chatSignedIn) {
     openAuthModal(t('Войдите, чтобы играть против персонажей: ими управляет нейросеть'));
@@ -18,7 +19,10 @@ function openCharacterSetup() {
   hideModal('characterCardModal');
   $id('charSetupError').classList.add('hidden');
   renderPresetCharacters();
+  // Сначала только готовые персонажи и кнопка «Создать своего персонажа»
+  setCharCustomOpen(customOpen);
   showModal('characterSetupModal');
+  $id('characterSetupModal').querySelector('.modal').scrollTop = 0;
 
   // Заполняем примеры из статистики
   const examplesContainer = document.getElementById('charExamples');
@@ -162,6 +166,22 @@ function renderPresetCharacters() {
   });
 }
 
+/* ---- Свой персонаж: форма раскрывается по кнопке ---- */
+function setCharCustomOpen(open) {
+  $id('charCustomSection').classList.toggle('hidden', !open);
+  $id('charCustomOpenBtn').classList.toggle('hidden', open);
+  $id('charCreateBtn').classList.toggle('hidden', !open);
+}
+
+$id('charCustomOpenBtn').addEventListener('click', () => {
+  playSound('ui');
+  setCharCustomOpen(true);
+  const section = $id('charCustomSection');
+  section.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  const input = charState.activeTab === 'desc' ? $id('charDescInput') : $id('charNameInput');
+  input.focus({ preventScroll: true });
+});
+
 /* ---- Вкладки: имя / описание ---- */
 document.querySelectorAll('.char-tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -224,7 +244,8 @@ $id('charCardBackBtn').addEventListener('click', () => {
   hideModal('characterCardModal');
   // Персонаж пришёл по ссылке — «Назад» ведёт на главный экран, а не к созданию своего
   if (charState.fromLink) { charState.fromLink = false; showHomeScreen(); return; }
-  openCharacterSetup();
+  // Вернулись с карточки своего персонажа — форма создания остаётся раскрытой
+  openCharacterSetup({ customOpen: !!charState.lastInput });
 });
 $id('charCardRegenBtn').addEventListener('click', () => {
   if (!charState.lastInput) return;

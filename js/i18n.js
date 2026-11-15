@@ -12,13 +12,25 @@ const AI_LANGUAGES = { ru: 'по-русски', en: 'на английском �
 const LANGUAGE_KEY = 'chessLanguage';
 const RUSSIAN_SPEAKING_LOCALES = ['ru', 'uk', 'be', 'kk'];
 
-function detectLanguage() {
+function savedLanguage() {
   try {
     const saved = localStorage.getItem(LANGUAGE_KEY);
     if (UI_DICTIONARIES[saved]) return saved;
-  } catch (e) { /* хранилище недоступно — определяем по браузеру */ }
+  } catch (e) { /* хранилище недоступно */ }
+  return null;
+}
+
+// Без сохранённого выбора — всегда русский. Язык браузера сам не переключает
+// интерфейс: поисковые роботы рендерят страницу с en-US и иначе индексировали бы
+// английскую версию по русским запросам. Англоязычным браузерам английский
+// предлагается плашкой (offerEnglish ниже).
+function detectLanguage() {
+  return savedLanguage() || 'ru';
+}
+
+function browserPrefersEnglish() {
   const browser = (navigator.language || 'ru').slice(0, 2).toLowerCase();
-  return RUSSIAN_SPEAKING_LOCALES.includes(browser) ? 'ru' : 'en';
+  return !RUSSIAN_SPEAKING_LOCALES.includes(browser);
 }
 
 const uiLang = detectLanguage();
@@ -71,3 +83,28 @@ function translatePage() {
 
 document.documentElement.lang = uiLang;
 document.title = t(document.title);
+
+// Плашка «Switch to English?» для браузеров не на русском, пока язык не выбран.
+// Текст намеренно по-английски: она для тех, кто не читает по-русски.
+// «Оставить русский» запоминает выбор, и плашка больше не появляется.
+function offerEnglish() {
+  if (savedLanguage() || !browserPrefersEnglish()) return;
+  const bar = document.createElement('div');
+  bar.className = 'lang-offer';
+  bar.setAttribute('role', 'dialog');
+  bar.setAttribute('aria-label', 'Language');
+  bar.lang = 'en';
+  bar.innerHTML =
+    '<span class="lang-offer-text">This site is in Russian. Switch to English?</span>' +
+    '<button type="button" class="lang-offer-yes">English</button>' +
+    '<button type="button" class="lang-offer-no" lang="ru">Оставить русский</button>';
+  bar.querySelector('.lang-offer-yes').addEventListener('click', () => setLanguage('en'));
+  bar.querySelector('.lang-offer-no').addEventListener('click', () => {
+    try { localStorage.setItem(LANGUAGE_KEY, 'ru'); } catch (e) { /* покажется снова при следующем заходе */ }
+    bar.remove();
+  });
+  document.body.appendChild(bar);
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', offerEnglish);
+else offerEnglish();

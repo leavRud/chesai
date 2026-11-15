@@ -30,16 +30,72 @@
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
-  "@type": "WebApplication",
-  "name": "chesai",
-  "url": "https://chesai.ru/",
-  "description": "Шахматы онлайн против Stockfish, вдвоём на одном устройстве или против персонажей под управлением нейросети. ИИ-помощник объясняет ходы.",
-  "applicationCategory": "GameApplication",
-  "genre": "Шахматы",
-  "operatingSystem": "Любая (в браузере)",
-  "inLanguage": ["ru", "en"],
-  "image": "https://chesai.ru/assests/og-image.jpg",
-  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "RUB" }
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://chesai.ru/#organization",
+      "name": "chesai",
+      "url": "https://chesai.ru/",
+      "logo": "https://chesai.ru/assests/icon-192.png",
+      "email": "maksimcebakov1@gmail.com",
+      "founder": {
+        "@id": "https://chesai.ru/#founder"
+      },
+      "sameAs": [
+        "https://github.com/leavRud/chessai",
+        "https://vk.com/app54890301"
+      ]
+    },
+    {
+      "@type": "Person",
+      "@id": "https://chesai.ru/#founder",
+      "name": "Максим Чебаков",
+      "url": "https://chesai.ru/contacts.html"
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://chesai.ru/#website",
+      "url": "https://chesai.ru/",
+      "name": "chesai",
+      "inLanguage": "ru",
+      "publisher": {
+        "@id": "https://chesai.ru/#organization"
+      }
+    },
+    {
+      "@type": "WebApplication",
+      "@id": "https://chesai.ru/#app",
+      "name": "chesai",
+      "url": "https://chesai.ru/",
+      "description": "Шахматы онлайн с компьютером (Stockfish), с другом по ссылке или на одном устройстве и против персонажей под управлением нейросети. ИИ-помощник объясняет ходы.",
+      "applicationCategory": "GameApplication",
+      "genre": "Шахматы",
+      "operatingSystem": "Any",
+      "browserRequirements": "Requires JavaScript",
+      "inLanguage": "ru",
+      "image": "https://chesai.ru/assests/og-image.jpg",
+      "isAccessibleForFree": true,
+      "featureList": [
+        "Игра с компьютером (Stockfish, 3 уровня)",
+        "Игра с другом по ссылке",
+        "Игра вдвоём на одном устройстве",
+        "Персонажи под управлением нейросети",
+        "Разбор партии движком",
+        "ИИ-помощник объясняет ходы"
+      ],
+      "author": {
+        "@id": "https://chesai.ru/#founder"
+      },
+      "publisher": {
+        "@id": "https://chesai.ru/#organization"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "RUB"
+      }
+    }
+  ]
 }
 </script>
 <!-- Тот же текст, что в разделе «Частые вопросы» (#view-faq) — менять вместе -->
@@ -48,14 +104,78 @@
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    { "@type": "Question", "name": "Это бесплатно?", "acceptedAnswer": { "@type": "Answer", "text": "Да. Игра против Stockfish, игра вдвоём и разбор партии движком бесплатны и доступны без регистрации. После входа в аккаунт каждый день даётся 5 бесплатных вопросов ИИ-помощнику, дополнительные можно купить." } },
-    { "@type": "Question", "name": "Нужна ли регистрация?", "acceptedAnswer": { "@type": "Answer", "text": "Чтобы играть против Stockfish или с другом — нет. Вход через Google или VK нужен для игры против персонажей, вопросов ИИ-помощнику и сохранения рейтинга Elo." } },
-    { "@type": "Question", "name": "Насколько силён компьютер?", "acceptedAnswer": { "@type": "Answer", "text": "Соперник — Stockfish, один из сильнейших шахматных движков в мире. Перед партией выберите цвет фигур и один из трёх уровней: лёгкий, средний или сложный." } },
-    { "@type": "Question", "name": "Кто такие персонажи?", "acceptedAnswer": { "@type": "Answer", "text": "Соперники, которыми управляет нейросеть. У каждого свой характер и стиль игры: они комментируют партию и отвечают вам в чате. Можно выбрать готового персонажа или описать своего." } },
-    { "@type": "Question", "name": "Что умеет ИИ-помощник?", "acceptedAnswer": { "@type": "Answer", "text": "Объясняет ходы и позиции простым языком, отвечает на вопросы в чате рядом с доской и комментирует разбор партии." } },
-    { "@type": "Question", "name": "Можно разобрать сыгранную партию?", "acceptedAnswer": { "@type": "Answer", "text": "Да. После партии Stockfish проверяет каждый ход и отмечает ошибки, а ИИ-помощник объяснит любой ход подробнее." } },
-    { "@type": "Question", "name": "Можно сыграть с другом?", "acceptedAnswer": { "@type": "Answer", "text": "Да, в режиме «Против друга» вы ходите по очереди на одном устройстве." } },
-    { "@type": "Question", "name": "Работает на телефоне? Нужно что-то устанавливать?", "acceptedAnswer": { "@type": "Answer", "text": "chesai работает прямо в браузере на компьютере и телефоне. Устанавливать ничего не нужно, но сайт можно добавить на главный экран как приложение." } }
+    {
+      "@type": "Question",
+      "name": "Это бесплатно?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Да. Игра с компьютером, игра с другом и разбор партии движком бесплатны и доступны без регистрации. После входа в аккаунт каждый день даётся 5 бесплатных вопросов ИИ-помощнику, дополнительные можно купить."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Нужна ли регистрация?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Чтобы играть против Stockfish или с другом — нет. Вход через Google или VK нужен для игры против персонажей, вопросов ИИ-помощнику и сохранения рейтинга Elo."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Насколько силён компьютер?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Соперник — Stockfish 18, один из сильнейших шахматных движков в мире. Уровней три: лёгкий (около 1400 Elo), средний (около 2150 Elo) и сложный (около 2900 Elo). Перед партией выберите уровень и цвет фигур."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Кто такие персонажи?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Соперники, которыми управляет нейросеть. У каждого свой характер и стиль игры: они комментируют партию и отвечают вам в чате. Можно выбрать готового персонажа или описать своего."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Что умеет ИИ-помощник?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Объясняет ходы и позиции простым языком, отвечает на вопросы в чате рядом с доской и комментирует разбор партии."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Можно разобрать сыгранную партию?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Да. После партии Stockfish проверяет каждый ход и отмечает ошибки, а ИИ-помощник объяснит любой ход подробнее."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Можно сыграть с другом?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Да, двумя способами. По ссылке: в режиме «Против друга» нажмите «Создать ссылку» и отправьте её другу — он откроет её на телефоне или компьютере и сразу окажется за доской, регистрация не нужна. Или на одном устройстве: ходите по очереди."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Работает на телефоне? Нужно что-то устанавливать?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "chesai работает прямо в браузере на компьютере и телефоне. Устанавливать ничего не нужно, но сайт можно добавить на главный экран как приложение. Есть и мини-приложение во ВКонтакте."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Кто делает chesai?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Независимый разработчик Максим Чебаков. Исходный код открыт на GitHub, почта для связи и реквизиты — на странице «Контакты»."
+      }
+    }
   ]
 }
 </script>
@@ -126,7 +246,7 @@
   <div id="homeKnights" class="home-knights-layer" aria-hidden="true"></div>
 
   <div class="home-topbar">
-    <h1 class="home-logo">chesai</h1>
+    <div class="home-logo">chesai</div>
     <button id="homeSettingsBtn" class="settings-icon-btn menu-icon-btn" type="button" title="Меню" aria-label="Меню">
       <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path d="M3 6.5a1 1 0 0 1 1-1h16a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1Zm0 5.5a1 1 0 0 1 1-1h16a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1Zm1 4.5a1 1 0 1 0 0 2h16a1 1 0 1 0 0-2H4Z"/>
@@ -138,7 +258,7 @@
     <div class="home-oval">
       <!-- Голова коня + иконка режима -->
       <div class="home-knight-wrap">
-        <img id="homeKnightImg" class="knight-head" alt="голова коня">
+        <img id="homeKnightImg" class="knight-head" alt="голова коня" width="1280" height="853" fetchpriority="high">
         <script>document.getElementById('homeKnightImg').src = window.__homeKnightSrc || 'assests/knight.webp';</script>
       </div>
 
@@ -158,13 +278,18 @@
   <!-- Описание сервиса для поисковиков и экранных дикторов: на экране его
        не видно, всё то же самое пользователь найдёт в «О приложении» и FAQ -->
   <section class="sr-only" aria-labelledby="homeIntroTitle">
-    <h2 id="homeIntroTitle">Шахматы онлайн против нейросети</h2>
-    <p>chesai — бесплатные шахматы онлайн в браузере. Играйте против движка Stockfish на трёх уровнях сложности, вдвоём с другом на одном устройстве или против персонажей, которыми управляет нейросеть: у каждого свой характер и стиль игры.</p>
+    <h1 id="homeIntroTitle">Шахматы онлайн с компьютером и нейросетью</h1>
+    <p>chesai — бесплатные шахматы онлайн в браузере. Играйте в шахматы с компьютером — движком Stockfish на трёх уровнях сложности, с другом по ссылке или на одном устройстве, или против персонажей, которыми управляет нейросеть: у каждого свой характер и стиль игры.</p>
     <p>ИИ-помощник объясняет ходы и позиции простым языком, а после партии Stockfish разбирает каждый ход и показывает ошибки. Рейтинг Elo, статистика и достижения сохраняются в аккаунте. Работает на компьютере и телефоне, без установки.</p>
+    <p>chesai делает независимый разработчик Максим Чебаков. Исходный код открыт на <a href="https://github.com/leavRud/chessai">GitHub</a>, контакты и реквизиты — на странице <a href="contacts.html">«Контакты»</a>.</p>
   </section>
 
   <footer class="home-footer">
     <nav class="home-footer-links" aria-label="Информация">
+      <a href="shakhmaty-s-kompyuterom.html">С компьютером</a>
+      <a href="shakhmaty-s-drugom.html">С другом</a>
+      <a href="shakhmaty-s-nejrosetyu.html">С нейросетью</a>
+      <a href="razbor-partii.html">Разбор партии</a>
       <a href="#faq" id="homeFaqLink">FAQ</a>
       <a href="tarify.html">Тарифы</a>
       <a href="oferta.html">Оферта</a>
@@ -177,7 +302,7 @@
 <div class="app hidden">
 
   <header class="topbar neumorphic-raised">
-    <h1 class="logo">chesai</h1>
+    <div class="logo">chesai</div>
     <div class="topbar-actions">
       <span id="modeLabel" class="badge"></span>
       <button id="appSettingsBtn" class="settings-icon-btn menu-icon-btn" type="button" title="Меню" aria-label="Меню">
@@ -269,7 +394,7 @@
       </div>
 
       <div class="chat-header">
-        <h2 id="chatTitle">Диалог с нейросетью</h2>
+        <div class="h2" role="heading" aria-level="2" id="chatTitle">Диалог с нейросетью</div>
         <span id="chatHint" class="chat-hint"></span>
       </div>
 
@@ -290,7 +415,7 @@
 <!-- ============ МОДАЛКА: ЦВЕТ + СЛОЖНОСТЬ ============ -->
 <div id="colorModal" class="modal-overlay hidden">
   <div class="modal neumorphic-raised wide difficulty-modal">
-    <h2>Против нейросети</h2>
+    <div class="h2" role="heading" aria-level="2">Против нейросети</div>
     <p class="modal-sub">За кого играете вы? Нейросеть возьмёт себе оставшийся цвет.</p>
 
     <div class="diff-section">
@@ -333,32 +458,36 @@
 <!-- ============ МОДАЛКА: НАСТРОЙКА ПЕРСОНАЖА ============ -->
 <div id="characterSetupModal" class="modal-overlay hidden">
   <div class="modal neumorphic-raised wide character-modal">
-    <h2>Против персонажа</h2>
+    <div class="h2" role="heading" aria-level="2">Против персонажа</div>
     <p class="modal-sub">Сыграйте с готовым персонажем или придумайте своего — нейросеть создаст его игровой профиль и стиль игры.</p>
 
     <div class="char-section-title">Готовые персонажи</div>
     <div id="charPresets" class="char-presets"></div>
 
-    <div class="char-section-title">Или создайте своего</div>
+    <!-- Создание своего персонажа раскрывается по кнопке «Создать своего персонажа» -->
+    <div id="charCustomSection" class="hidden">
+      <div class="char-section-title">Или создайте своего</div>
 
-    <div class="char-tabs" role="tablist">
-      <button type="button" class="char-tab is-active" data-tab="name" role="tab" aria-selected="true">Имя персонажа</button>
-      <button type="button" class="char-tab" data-tab="desc" role="tab" aria-selected="false">Создать своего персонажа</button>
+      <div class="char-tabs" role="tablist">
+        <button type="button" class="char-tab is-active" data-tab="name" role="tab" aria-selected="true">Имя персонажа</button>
+        <button type="button" class="char-tab" data-tab="desc" role="tab" aria-selected="false">Описать своего</button>
+      </div>
+
+      <div id="charNameTab" class="char-tab-panel">
+        <input id="charNameInput" type="text" class="char-text-input" placeholder="Например: Магнус Карлсен, Шерлок Холмс, Гэндальф…" maxlength="60" aria-label="Имя персонажа">
+        <div class="char-examples" id="charExamples"></div>
+      </div>
+
+      <div id="charDescTab" class="char-tab-panel hidden">
+        <textarea id="charDescInput" class="char-textarea" rows="4" maxlength="500" placeholder="Опишите характер и стиль игры персонажа. Например: «Старый гроссмейстер, который ненавидит ничьи и всегда жертвует фигуры»…" aria-label="Описание персонажа"></textarea>
+      </div>
+
+      <div id="charSetupError" class="char-setup-error hidden"></div>
     </div>
-
-    <div id="charNameTab" class="char-tab-panel">
-      <input id="charNameInput" type="text" class="char-text-input" placeholder="Например: Магнус Карлсен, Шерлок Холмс, Гэндальф…" maxlength="60">
-      <div class="char-examples" id="charExamples"></div>
-    </div>
-
-    <div id="charDescTab" class="char-tab-panel hidden">
-      <textarea id="charDescInput" class="char-textarea" rows="4" maxlength="500" placeholder="Опишите характер и стиль игры персонажа. Например: «Старый гроссмейстер, который ненавидит ничьи и всегда жертвует фигуры»…"></textarea>
-    </div>
-
-    <div id="charSetupError" class="char-setup-error hidden"></div>
 
     <div class="modal-actions">
-      <button id="charCreateBtn" class="btn btn-accent" type="button">Создать персонажа</button>
+      <button id="charCustomOpenBtn" class="btn btn-accent" type="button">Создать своего персонажа</button>
+      <button id="charCreateBtn" class="btn btn-accent hidden" type="button">Создать персонажа</button>
       <button id="charSetupBackBtn" class="btn btn-ghost" type="button">Назад</button>
     </div>
   </div>
@@ -375,7 +504,7 @@
       <div class="char-card-head">
         <span class="char-card-icon">♞</span>
         <div class="char-card-headtext">
-          <h2 id="charCardName">—</h2>
+          <div class="h2" role="heading" aria-level="2" id="charCardName">—</div>
           <p id="charCardDesc" class="char-card-desc"></p>
         </div>
         <span id="charCardElo" class="char-card-elo"></span>
@@ -426,7 +555,7 @@
   <div class="modal neumorphic-raised wide result-modal">
     <div class="result-main">
       <span id="resultEyebrow" class="result-eyebrow"></span>
-      <h2 id="resultTitle">Игра окончена</h2>
+      <div class="h2" role="heading" aria-level="2" id="resultTitle">Игра окончена</div>
       <p id="resultText" class="modal-sub"></p>
 
       <div class="result-stats">
@@ -478,7 +607,7 @@
 <div id="friendModal" class="modal-overlay hidden">
   <div class="modal neumorphic-raised wide friend-modal" role="dialog" aria-modal="true">
     <div id="friendChoiceStep">
-      <h2>Игра с другом</h2>
+      <div class="h2" role="heading" aria-level="2">Игра с другом</div>
       <p class="modal-sub">Отправьте другу ссылку — он откроет её на телефоне или компьютере и сразу окажется за доской. Регистрация не нужна.</p>
       <div class="diff-section">
         <span class="diff-section-label">Ваш цвет</span>
@@ -503,7 +632,7 @@
     </div>
 
     <div id="friendWaitStep" class="hidden">
-      <h2>Ссылка готова</h2>
+      <div class="h2" role="heading" aria-level="2">Ссылка готова</div>
       <p class="modal-sub">Отправьте её другу. Партия начнётся, как только он откроет ссылку и нажмёт «Играть».</p>
       <input id="onlineLinkInput" class="menu-text-input online-link-input" type="text" readonly aria-label="Ссылка на партию" />
       <div class="online-wait">
@@ -523,7 +652,7 @@
 <div id="onlineJoinModal" class="modal-overlay hidden">
   <div class="modal neumorphic-raised online-join-modal" role="dialog" aria-modal="true" aria-labelledby="onlineJoinTitle">
     <span class="online-join-icon">♞</span>
-    <h2 id="onlineJoinTitle">Вас зовут сыграть</h2>
+    <div class="h2" role="heading" aria-level="2" id="onlineJoinTitle">Вас зовут сыграть</div>
     <p id="onlineJoinText" class="modal-sub"></p>
     <p id="onlineJoinError" class="char-setup-error hidden" role="alert"></p>
     <div class="modal-actions">
@@ -537,7 +666,7 @@
 <!-- ============ МОДАЛКА: ПОКУПКА ВОПРОСОВ ============ -->
 <div id="buyModal" class="modal-overlay hidden">
   <div class="modal neumorphic-raised wide buy-modal" role="dialog" aria-modal="true" aria-labelledby="buyModalTitle">
-    <h2 id="buyModalTitle">Купить вопросы</h2>
+    <div class="h2" role="heading" aria-level="2" id="buyModalTitle">Купить вопросы</div>
     <p class="modal-sub">Вопросы ИИ-помощнику зачисляются на аккаунт сразу после оплаты и не сгорают.
       Сначала тратятся 5 бесплатных вопросов в день, затем купленные.</p>
 
@@ -560,7 +689,7 @@
 <div id="moveDetailModal" class="modal-overlay hidden achv-modal-overlay">
   <div class="modal neumorphic-raised wide achv-modal move-detail-modal">
     <div class="achv-modal-header">
-      <h2 id="moveDetailTitle">Анализ хода</h2>
+      <div class="h2" role="heading" aria-level="2" id="moveDetailTitle">Анализ хода</div>
       <button id="moveDetailCloseBtn" class="settings-close-btn" type="button" aria-label="Закрыть">✕</button>
     </div>
     <div class="move-detail-layout">
@@ -588,7 +717,7 @@
 <div id="feedbackModal" class="modal-overlay achv-modal-overlay hidden">
   <div class="modal neumorphic-raised achv-modal feedback-modal" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
     <div class="achv-modal-header">
-      <h2 id="feedbackModalTitle">Обратная связь</h2>
+      <div class="h2" role="heading" aria-level="2" id="feedbackModalTitle">Обратная связь</div>
       <button id="feedbackCloseBtn" class="settings-close-btn" type="button" aria-label="Закрыть">✕</button>
     </div>
 
@@ -681,7 +810,7 @@
 
     <div class="settings-header menu-header">
       <button id="menuBackBtn" class="settings-close-btn menu-back-btn" type="button" aria-label="Закрыть">✕</button>
-      <h2 id="sidePanelTitle" class="side-panel-title"></h2>
+      <div role="heading" aria-level="2" id="sidePanelTitle" class="h2 side-panel-title"></div>
     </div>
 
     <div class="settings-body menu-body">
@@ -747,7 +876,7 @@
         <div class="faq-list">
           <details class="faq-item">
             <summary>Это бесплатно?</summary>
-            <p>Да. Игра против Stockfish, игра вдвоём и разбор партии движком бесплатны и доступны без регистрации. После входа в аккаунт каждый день даётся 5 бесплатных вопросов ИИ-помощнику, дополнительные можно купить.</p>
+            <p>Да. Игра с компьютером, игра с другом и разбор партии движком бесплатны и доступны без регистрации. После входа в аккаунт каждый день даётся 5 бесплатных вопросов ИИ-помощнику, дополнительные можно купить.</p>
           </details>
           <details class="faq-item">
             <summary>Нужна ли регистрация?</summary>
@@ -755,7 +884,7 @@
           </details>
           <details class="faq-item">
             <summary>Насколько силён компьютер?</summary>
-            <p>Соперник — Stockfish, один из сильнейших шахматных движков в мире. Перед партией выберите цвет фигур и один из трёх уровней: лёгкий, средний или сложный.</p>
+            <p>Соперник — Stockfish 18, один из сильнейших шахматных движков в мире. Уровней три: лёгкий (около 1400 Elo), средний (около 2150 Elo) и сложный (около 2900 Elo). Перед партией выберите уровень и цвет фигур.</p>
           </details>
           <details class="faq-item">
             <summary>Кто такие персонажи?</summary>
@@ -771,11 +900,15 @@
           </details>
           <details class="faq-item">
             <summary>Можно сыграть с другом?</summary>
-            <p>Да, в режиме «Против друга» вы ходите по очереди на одном устройстве.</p>
+            <p>Да, двумя способами. По ссылке: в режиме «Против друга» нажмите «Создать ссылку» и отправьте её другу — он откроет её на телефоне или компьютере и сразу окажется за доской, регистрация не нужна. Или на одном устройстве: ходите по очереди.</p>
           </details>
           <details class="faq-item">
             <summary>Работает на телефоне? Нужно что-то устанавливать?</summary>
-            <p>chesai работает прямо в браузере на компьютере и телефоне. Устанавливать ничего не нужно, но сайт можно добавить на главный экран как приложение.</p>
+            <p>chesai работает прямо в браузере на компьютере и телефоне. Устанавливать ничего не нужно, но сайт можно добавить на главный экран как приложение. Есть и мини-приложение во ВКонтакте.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Кто делает chesai?</summary>
+            <p>Независимый разработчик Максим Чебаков. Исходный код открыт на GitHub, почта для связи и реквизиты — на странице «Контакты».</p>
           </details>
         </div>
       </div>
@@ -1130,7 +1263,7 @@
 
         <div class="about-section">
           <div class="about-section-title">Что такое chesai</div>
-          <p class="about-section-text">Игра против Stockfish и против персонажей с собственным характером, разбор партий, статистика, рейтинг Elo и достижения.</p>
+          <p class="about-section-text">Игра против Stockfish, с другом по ссылке и против персонажей с собственным характером, разбор партий, статистика, рейтинг Elo и достижения.</p>
         </div>
 
         <div class="about-section">
@@ -1138,7 +1271,7 @@
           <div class="about-feature-grid">
             <div class="about-feature"><span class="about-feature-icon" data-icon="chess"></span><span>Против Stockfish</span></div>
             <div class="about-feature"><span class="about-feature-icon" data-icon="masks-theater"></span><span>Против персонажей</span></div>
-            <div class="about-feature"><span class="about-feature-icon" data-icon="users"></span><span>Вдвоём на одном устройстве</span></div>
+            <div class="about-feature"><span class="about-feature-icon" data-icon="users"></span><span>С другом по ссылке или на одном устройстве</span></div>
             <div class="about-feature"><span class="about-feature-icon" data-icon="search"></span><span>Анализ партий</span></div>
             <div class="about-feature"><span class="about-feature-icon" data-icon="chart-bar"></span><span>Статистика и Elo</span></div>
             <div class="about-feature"><span class="about-feature-icon" data-icon="trophy"></span><span>Достижения</span></div>
@@ -1204,7 +1337,7 @@
 <div id="authModal" class="modal-overlay achv-modal-overlay hidden">
   <div class="modal achv-modal auth-modal">
     <div class="achv-modal-header auth-modal-header">
-      <h2 id="authModalTitle">Вход в аккаунт</h2>
+      <div class="h2" role="heading" aria-level="2" id="authModalTitle">Вход в аккаунт</div>
       <button id="authCloseBtn" class="settings-close-btn" type="button" aria-label="Закрыть">✕</button>
     </div>
     <!-- Зачем просят войти (персонажи, покупка) — вместо всплывающего сообщения, которое закрывало низ окна -->
@@ -1349,7 +1482,7 @@
 <!-- Библиотеки лежат на самом сайте (vendor/, версия в имени файла), а не на CDN:
      сбой или блокировка CDN иначе ломает приложение целиком. -->
 <!-- jQuery (нужен для chessboard.js) -->
-<script src="vendor/jquery-3.5.1.min.js"></script>
+<script src="vendor/jquery-3.7.1.min.js"></script>
 
 <!-- chess.js — правила игры -->
 <script src="vendor/chess-0.10.3.min.js"></script>
