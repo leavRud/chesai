@@ -9,8 +9,8 @@ const charState = {
   lastInput: null, // { type: 'name'|'desc', value: string }
 };
 
-// customOpen — сразу раскрыть форму своего персонажа (возврат с его карточки)
-function openCharacterSetup({ customOpen = false } = {}) {
+// keepTab — остаться на той вкладке, с которой ушли (возврат с карточки персонажа)
+function openCharacterSetup({ keepTab = false } = {}) {
   // Персонажей ведёт нейросеть, а она доступна только после входа.
   if (!chatSignedIn) {
     openAuthModal(t('Войдите, чтобы играть против персонажей: ими управляет нейросеть'));
@@ -19,8 +19,8 @@ function openCharacterSetup({ customOpen = false } = {}) {
   hideModal('characterCardModal');
   $id('charSetupError').classList.add('hidden');
   renderPresetCharacters();
-  // Сначала только готовые персонажи и кнопка «Создать своего персонажа»
-  setCharCustomOpen(customOpen);
+  // Как раньше: открывается вкладка «Имя персонажа»
+  setCharTab(keepTab ? charState.activeTab : 'name');
   showModal('characterSetupModal');
   $id('characterSetupModal').querySelector('.modal').scrollTop = 0;
 
@@ -166,35 +166,20 @@ function renderPresetCharacters() {
   });
 }
 
-/* ---- Свой персонаж: форма раскрывается по кнопке ---- */
-function setCharCustomOpen(open) {
-  $id('charCustomSection').classList.toggle('hidden', !open);
-  $id('charCustomOpenBtn').classList.toggle('hidden', open);
-  $id('charCreateBtn').classList.toggle('hidden', !open);
+/* ---- Вкладки: имя / свой персонаж (на ней же готовые персонажи) ---- */
+function setCharTab(target) {
+  charState.activeTab = target;
+  document.querySelectorAll('.char-tab').forEach(t => {
+    const active = t.dataset.tab === target;
+    t.classList.toggle('is-active', active);
+    t.setAttribute('aria-selected', String(active));
+  });
+  $id('charNameTab').classList.toggle('hidden', target !== 'name');
+  $id('charDescTab').classList.toggle('hidden', target !== 'desc');
 }
 
-$id('charCustomOpenBtn').addEventListener('click', () => {
-  playSound('ui');
-  setCharCustomOpen(true);
-  const section = $id('charCustomSection');
-  section.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  const input = charState.activeTab === 'desc' ? $id('charDescInput') : $id('charNameInput');
-  input.focus({ preventScroll: true });
-});
-
-/* ---- Вкладки: имя / описание ---- */
 document.querySelectorAll('.char-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    const target = tab.dataset.tab;
-    charState.activeTab = target;
-    document.querySelectorAll('.char-tab').forEach(t => {
-      const active = t === tab;
-      t.classList.toggle('is-active', active);
-      t.setAttribute('aria-selected', String(active));
-    });
-    $id('charNameTab').classList.toggle('hidden', target !== 'name');
-    $id('charDescTab').classList.toggle('hidden', target !== 'desc');
-  });
+  tab.addEventListener('click', () => setCharTab(tab.dataset.tab));
 });
 
 document.querySelectorAll('.char-example-chip').forEach(chip => {
@@ -245,7 +230,7 @@ $id('charCardBackBtn').addEventListener('click', () => {
   // Персонаж пришёл по ссылке — «Назад» ведёт на главный экран, а не к созданию своего
   if (charState.fromLink) { charState.fromLink = false; showHomeScreen(); return; }
   // Вернулись с карточки своего персонажа — форма создания остаётся раскрытой
-  openCharacterSetup({ customOpen: !!charState.lastInput });
+  openCharacterSetup({ keepTab: true });
 });
 $id('charCardRegenBtn').addEventListener('click', () => {
   if (!charState.lastInput) return;

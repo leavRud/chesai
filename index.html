@@ -286,10 +286,7 @@
 
   <footer class="home-footer">
     <nav class="home-footer-links" aria-label="Информация">
-      <a href="shakhmaty-s-kompyuterom.html">С компьютером</a>
-      <a href="shakhmaty-s-drugom.html">С другом</a>
-      <a href="shakhmaty-s-nejrosetyu.html">С нейросетью</a>
-      <a href="razbor-partii.html">Разбор партии</a>
+      <!-- Статьи (с компьютером, с другом, с нейросетью, разбор партии) — в меню «О приложении» -->
       <a href="#faq" id="homeFaqLink">FAQ</a>
       <a href="tarify.html">Тарифы</a>
       <a href="oferta.html">Оферта</a>
@@ -459,35 +456,30 @@
 <div id="characterSetupModal" class="modal-overlay hidden">
   <div class="modal neumorphic-raised wide character-modal">
     <div class="h2" role="heading" aria-level="2">Против персонажа</div>
-    <p class="modal-sub">Сыграйте с готовым персонажем или придумайте своего — нейросеть создаст его игровой профиль и стиль игры.</p>
+    <p class="modal-sub">Выберите готовое имя или создайте своего персонажа — нейросеть создаст его игровой профиль и стиль игры.</p>
 
-    <div class="char-section-title">Готовые персонажи</div>
-    <div id="charPresets" class="char-presets"></div>
-
-    <!-- Создание своего персонажа раскрывается по кнопке «Создать своего персонажа» -->
-    <div id="charCustomSection" class="hidden">
-      <div class="char-section-title">Или создайте своего</div>
-
-      <div class="char-tabs" role="tablist">
-        <button type="button" class="char-tab is-active" data-tab="name" role="tab" aria-selected="true">Имя персонажа</button>
-        <button type="button" class="char-tab" data-tab="desc" role="tab" aria-selected="false">Описать своего</button>
-      </div>
-
-      <div id="charNameTab" class="char-tab-panel">
-        <input id="charNameInput" type="text" class="char-text-input" placeholder="Например: Магнус Карлсен, Шерлок Холмс, Гэндальф…" maxlength="60" aria-label="Имя персонажа">
-        <div class="char-examples" id="charExamples"></div>
-      </div>
-
-      <div id="charDescTab" class="char-tab-panel hidden">
-        <textarea id="charDescInput" class="char-textarea" rows="4" maxlength="500" placeholder="Опишите характер и стиль игры персонажа. Например: «Старый гроссмейстер, который ненавидит ничьи и всегда жертвует фигуры»…" aria-label="Описание персонажа"></textarea>
-      </div>
-
-      <div id="charSetupError" class="char-setup-error hidden"></div>
+    <div class="char-tabs" role="tablist">
+      <button type="button" class="char-tab is-active" data-tab="name" role="tab" aria-selected="true">Имя персонажа</button>
+      <button type="button" class="char-tab" data-tab="desc" role="tab" aria-selected="false">Создать своего персонажа</button>
     </div>
 
+    <div id="charNameTab" class="char-tab-panel">
+      <input id="charNameInput" type="text" class="char-text-input" placeholder="Например: Магнус Карлсен, Шерлок Холмс, Гэндальф…" maxlength="60" aria-label="Имя персонажа">
+      <div class="char-examples" id="charExamples"></div>
+    </div>
+
+    <!-- Готовые персонажи показываются только на вкладке «Создать своего персонажа» -->
+    <div id="charDescTab" class="char-tab-panel hidden">
+      <div class="char-section-title">Готовые персонажи</div>
+      <div id="charPresets" class="char-presets"></div>
+      <div class="char-section-title">Или опишите своего</div>
+      <textarea id="charDescInput" class="char-textarea" rows="4" maxlength="500" placeholder="Опишите характер и стиль игры персонажа. Например: «Старый гроссмейстер, который ненавидит ничьи и всегда жертвует фигуры»…" aria-label="Описание персонажа"></textarea>
+    </div>
+
+    <div id="charSetupError" class="char-setup-error hidden"></div>
+
     <div class="modal-actions">
-      <button id="charCustomOpenBtn" class="btn btn-accent" type="button">Создать своего персонажа</button>
-      <button id="charCreateBtn" class="btn btn-accent hidden" type="button">Создать персонажа</button>
+      <button id="charCreateBtn" class="btn btn-accent" type="button">Создать персонажа</button>
       <button id="charSetupBackBtn" class="btn btn-ghost" type="button">Назад</button>
     </div>
   </div>
@@ -1303,6 +1295,26 @@
             <span class="about-tech-tag">Provod.ai</span>
             <span class="about-tech-tag">JS / HTML / CSS</span>
           </div>
+        </div>
+
+        <div class="about-section">
+          <div class="about-section-title">Статьи</div>
+          <a href="shakhmaty-s-kompyuterom.html" class="about-link-row">
+            <span>С компьютером</span>
+            <span class="about-link-arrow">›</span>
+          </a>
+          <a href="shakhmaty-s-drugom.html" class="about-link-row">
+            <span>С другом</span>
+            <span class="about-link-arrow">›</span>
+          </a>
+          <a href="shakhmaty-s-nejrosetyu.html" class="about-link-row">
+            <span>С нейросетью</span>
+            <span class="about-link-arrow">›</span>
+          </a>
+          <a href="razbor-partii.html" class="about-link-row">
+            <span>Разбор партии</span>
+            <span class="about-link-arrow">›</span>
+          </a>
         </div>
 
         <div class="about-section">

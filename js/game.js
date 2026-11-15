@@ -665,3 +665,11 @@ $id('resignBtn').addEventListener('click', () => {
   const resigned = state.mode === 'friend' ? state.game.turn() : state.playerColor;
   showResultModal(text, outcome, 'resign', resigned === 'w' ? 'b' : 'w');
 });
+
+// Долгое нажатие на фигуру или доску на Android открывало меню браузера
+// («Скачать изображение», сведения об SVG): -webkit-touch-callout в CSS
+// понимает только Safari на iPhone. Здесь меню отключаем для всех браузеров —
+// на главной доске, мини-досках разбора и кнопках выбора фигуры.
+document.addEventListener('contextmenu', (e) => {
+  if (e.target.closest && e.target.closest('.board-b72b1, img.piece-417db, [data-piece]')) e.preventDefault();
+});
