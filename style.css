@@ -4153,3 +4153,31 @@ html.is-vk .chat-quota-buy { display: none !important; }
 .draw-offer-text { flex: 1 1 160px; font-size: 13.5px; font-weight: 600; }
 .draw-offer-actions { display: flex; gap: 8px; margin-left: auto; }
 @keyframes drawOfferIn { from { opacity: 0; transform: translateY(-4px); } }
+
+/* Карточка персонажа: выбор цвета — первой строкой прилипающей панели кнопок */
+.char-card-actions { flex-wrap: wrap; }
+.char-card-actions .char-color-section { flex: 1 1 100%; margin: 0 0 4px; }
+.char-card-actions .char-color-section .diff-section-label { margin-bottom: 6px; }
+.char-card-actions .color-choice-btn { padding: 9px 10px; }
+/* Пока персонаж создаётся или не создался — выбирать цвет не для кого */
+#characterCardModal:has(#characterCardBody.hidden) .char-color-section { display: none; }
+
+/* Итог с разбором справа: у цифр нет нижнего отступа, и ссылки под ними
+   (−10px сверху) наезжали на карточки */
+@media (min-width: 900px) {
+  .result-modal:has(#analysisBlock:not(.hidden)) .result-pgn-row { margin-top: 10px; }
+}
+
+/* «Любимый момент ›» — только надпись и стрелка (фраза и ход — в окне) */
+.char-result-moment { justify-content: space-between; }
+.char-result-moment-arrow { color: var(--accent); font-size: 18px; font-weight: 700; line-height: 1; }
+@media (max-width: 720px) {
+  /* Телефон: «Назад» и «Перегенерировать» в одну строку, «Играть» во всю ширину —
+     иначе панель с выбором цвета занимала почти половину окна */
+  .char-card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-top: 10px; }
+  .char-card-actions .char-color-section,
+  .char-card-actions #charCardPlayBtn { grid-column: 1 / -1; }
+  .char-card-actions:has(#charCardRegenBtn.hidden) #charCardBackBtn { grid-column: 1 / -1; }
+  .char-card-actions .color-choice-row { flex-wrap: nowrap; gap: 6px; }
+  .char-card-actions .color-choice-btn { padding: 8px 4px; font-size: 13px; gap: 6px; }
+}

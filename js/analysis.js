@@ -71,6 +71,7 @@ function moveAccuracyFromWinDrop(drop) {
 const LEVEL_EVAL_CAP = 1200;
 const LEVEL_MATE_BASE = 1500;
 const LEVEL_MOVE_LOSS_CAP = 600;
+const LEVEL_DECIDED_LOSS_CAP = 100; // в уже решённой позиции — не больше пешки за ход
 function levelScore(score) {
   if (score == null) return null;
   if (score > 50000) return LEVEL_MATE_BASE - Math.min(100000 - score, 25) * 10; // мат в N за нас: 1250…1490
@@ -104,7 +105,13 @@ function buildMoveItem(move, ply, fenBefore, fenAfter, before, after, flags = {}
   if (missedMate && classification === 'ok') classification = 'inaccuracy';
   const lb = whiteBefore == null ? null : levelScore(whiteBefore * sign);
   const la = whiteAfter == null ? null : levelScore(whiteAfter * sign);
-  const levelLoss = known && !playedBest ? Math.min(LEVEL_MOVE_LOSS_CAP, Math.max(0, lb - la)) : 0;
+  // Позиция уже решена и до, и после хода: «−9 → мат в 5» или «+12 → +9» на
+  // исход не влияет. Раньше такой ход считался потерей до 6 пешек, и тот, кого
+  // матуют, получал уровень ~300 при средней потере 69 (Рик, 15.11). Игроки
+  // lichess, по которым откалибрована шкала, в таких позициях обычно сдаются.
+  const bothDecided = known && Math.min(Math.abs(lb), Math.abs(la)) >= DECIDED_EVAL && Math.sign(lb) === Math.sign(la);
+  const lossCap = bothDecided ? LEVEL_DECIDED_LOSS_CAP : LEVEL_MOVE_LOSS_CAP;
+  const levelLoss = known && !playedBest ? Math.min(lossCap, Math.max(0, lb - la)) : 0;
   // Ход в уже решённой позиции идёт в уровень с меньшим весом, но идёт
   const decidedness = known ? Math.min(Math.abs(lb), Math.abs(la)) : LEVEL_EVAL_CAP;
   const counts = known && !flags.book && !flags.forced;

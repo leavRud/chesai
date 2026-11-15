@@ -472,12 +472,13 @@ function buildCharacterPersonaPrompt() {
   const acc = typeof getAccount === 'function' ? getAccount() : null;
   const playerName = acc && acc.name ? String(acc.name).slice(0, 24) : '';
   return `Ты — ${c.name}. ${c.shortDescription}
-Прямо сейчас ты сидишь за шахматной доской напротив человека, играешь с ним партию и переговариваешься. Он и есть твой соперник; дальше он называется «собеседник».${playerName ? ` Его зовут ${playerName} — можешь иногда звать его по имени.` : ''} Кроме вас двоих здесь никого нет. Ты живая личность со своим характером, юмором и настроением, а не бот.
+Прямо сейчас ты сидишь за шахматной доской напротив человека, играешь с ним партию и переговариваешься. Он и есть твой соперник; дальше он называется «собеседник».${playerName ? ` Его настоящее имя — ${playerName}.` : ''} Кроме вас двоих здесь никого нет. Ты живая личность со своим характером, юмором и настроением, а не бот.
 Как ты играешь: ${c.style}
 Как ты говоришь: ${c.tone}${c.persona ? `\nО тебе: ${c.persona}` : ''}
 
 Правила:
 - Всегда говори прямо с собеседником, лицом к лицу: «ты» или «вы» — как принято у твоего персонажа. Никогда не говори о нём в третьем лице («этот твой противник», «мой соперник», «он») и не обращайся к кому-то третьему — зрителям, ведущему, помощнику.
+- Обращение к собеседнику — одно на реплику. Если у твоего персонажа есть привычное прозвище для собеседника (Рик зовёт всех «Морти», старый пират — «салагой»), зови так и не добавляй в ту же реплику настоящее имя. По настоящему имени обращайся редко — не чаще раза в несколько реплик и никогда вместе с прозвищем.
 - Пометки в квадратных скобках пишет программа, а не собеседник: [Фон: …] — что сейчас на доске, [Событие: …] — что только что случилось в партии. Не отвечай на них как на чужие слова, не цитируй и не упоминай их.
 - Ты всегда помнишь, что идёт партия: кто как сходил, как складывается игра, о чём вы уже говорили.
 - Когда собеседник что-то спрашивает или говорит, отвечай по существу и по-человечески, даже если это не о шахматах: не переводи каждую реплику в шахматы и не притягивай шахматные метафоры. Можно коротко вернуться к партии, если это к месту.
@@ -647,10 +648,10 @@ function renderCharacterResult({ mood, favoriteMoment, comment, moment = null })
   const c = state.character;
   lastCharacterResult = { mood, favoriteMoment, comment, moment };
   const momentRow = moment
+    // В строке — только надпись и стрелка; фраза персонажа и ход — в окне
     ? `<button type="button" class="char-result-row char-result-moment" id="charFavMomentBtn" aria-haspopup="dialog">
         <span>${t('Любимый момент')}</span>
-        <b>${escapeHtml(favoriteMoment)}</b>
-        <span class="char-result-moment-move">${escapeHtml(momentMoveLabel(moment))} ›</span>
+        <span class="char-result-moment-arrow" aria-hidden="true">›</span>
       </button>`
     : `<div class="char-result-row"><span>${t('Любимый момент')}</span><b>${escapeHtml(favoriteMoment)}</b></div>`;
   $id('characterResultContent').innerHTML = `
@@ -716,6 +717,8 @@ function openFavoriteMoment() {
   if (!moment) return;
   const c = state.character;
   const mine = moment.move.color === state.aiColor;
+  $id('favMomentTitle').textContent = lastCharacterResult.favoriteMoment && lastCharacterResult.favoriteMoment !== '—'
+    ? lastCharacterResult.favoriteMoment : t('Любимый момент');
   $id('favMomentSan').innerHTML = `<b>${escapeHtml(momentMoveLabel(moment))}</b><span>${mine ? escapeHtml(t('ход {name}', { name: c ? c.name : t('персонажа') })) : t('ваш ход')}</span>`;
   $id('favMomentName').textContent = c ? c.name : '';
   $id('favMomentLine').textContent = moment.line || lastCharacterResult.favoriteMoment;
