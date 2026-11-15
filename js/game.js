@@ -87,30 +87,26 @@ function initGame() {
   tapSelectedSquare = null;
   $('#board').off('click.tap').on('click.tap', '.square-55d63', onSquareTap);
 
-  const chatInputEl = $id('chatInput');
+  $id('chatInput').placeholder = defaultChatPlaceholder();
   const playerColorName = state.playerColor === 'w' ? t('белыми') : t('чёрными');
   if (state.mode === 'ai') {
     $id('modeLabel').textContent = t('Против нейросети · вы играете {color}', { color: playerColorName });
     $id('chatTitle').textContent = t('Диалог с нейросетью');
     $id('chatHint').textContent = t('Можно спросить в любой момент партии');
-    chatInputEl.placeholder = t('Спросите о позиции, ходе, угрозах, совете…');
   } else if (state.mode === 'characters' && state.character) {
     $id('modeLabel').textContent = t('Против персонажа: {name} · вы играете {color}', { name: state.character.name, color: playerColorName });
     $id('chatTitle').textContent = t('Разговор с соперником — {name}', { name: state.character.name });
     $id('chatHint').textContent = t('{name} — ваш соперник и не даёт подсказок по ходам', { name: state.character.name });
-    chatInputEl.placeholder = t('Скажите что-нибудь {name}…', { name: state.character.name });
     logSystemChat(t('Вы играете против персонажа «{name}» (≈{elo} Elo). Он ваш соперник за доской и не будет подсказывать вам ходы.', { name: state.character.name, elo: state.character.elo }));
-    characterReact('Партия только начинается. Поприветствуйте соперника в своём образе.', true);
+    characterReact('партия только начинается. Поздоровайся с собеседником в своём образе.', true);
   } else if (state.mode === 'online') {
     $id('modeLabel').textContent = t('Партия с другом по ссылке · вы играете {color}', { color: playerColorName });
     $id('chatTitle').textContent = t('Диалог с нейросетью');
     $id('chatHint').textContent = t('Во время партии с человеком помощник молчит — спросите после партии');
-    chatInputEl.placeholder = t('Спросите после партии…');
   } else {
     $id('modeLabel').textContent = t('Игра вдвоём на одном устройстве');
     $id('chatTitle').textContent = t('Диалог с нейросетью');
     $id('chatHint').textContent = t('Нейросеть отвечает только по запросу и не подсказывает сама');
-    chatInputEl.placeholder = t('Спросите о позиции, ходе, угрозах, совете…');
   }
   syncAutoHintAvailability();
 
@@ -387,7 +383,7 @@ function renderPlayerBars() {
       return { king, name: state.onlineOpponentName || t('Соперник'), meta: t('Друг по ссылке') };
     }
     if (side === state.playerColor) {
-      return { king, name: acc?.name || t('Вы'), meta: acc ? t('Рейтинг {elo}', { elo: acc.elo ?? 1200 }) : t('Гость') };
+      return { king, name: acc?.name || t('Вы'), meta: acc ? t('Рейтинг {elo}', { elo: acc.elo ?? 1200 }) : t('Гость'), own: true };
     }
     if (state.mode === 'characters' && state.character) {
       return { king, name: state.character.name, meta: t('≈{elo} Эло', { elo: state.character.elo }) };
@@ -398,7 +394,18 @@ function renderPlayerBars() {
   [[$id('playerBarTop'), topSide], [$id('playerBarBottom'), bottomSide]].forEach(([bar, side]) => {
     const info = describe(side);
     bar.dataset.side = side;
-    bar.querySelector('.pb-avatar').textContent = info.king;
+    // У своей плашки — аватар и рамка профиля; цвет фигур подсказывает
+    // маленький король в углу. Без своей картинки и рамки — король, как раньше.
+    const avatarEl = bar.querySelector('.pb-avatar');
+    const showProfile = info.own && acc && (isImageAvatar(acc.avatar) || (acc.frame && acc.frame !== 'none' && isFrameUnlocked(acc.frame)));
+    avatarEl.classList.toggle('pb-avatar-profile', !!showProfile);
+    if (showProfile) {
+      paintAvatar(avatarEl, acc);
+      avatarEl.dataset.king = info.king;
+    } else {
+      paintAvatar(avatarEl, { avatar: info.king });
+      delete avatarEl.dataset.king;
+    }
     bar.querySelector('.pb-name-text').textContent = info.name;
     bar.querySelector('.pb-meta').textContent = info.meta;
     bar.querySelector('.pb-material').prepend($id(side === 'w' ? 'capturedWhite' : 'capturedBlack'));
@@ -465,6 +472,9 @@ function updateStatus() {
   const sideLabel = game.turn() === 'w' ? t('Белые') : t('Чёрные');
   if (game.in_checkmate()) {
     text = t('Мат! {side} получают мат.', { side: sideLabel });
+    // Заматованного короля видно сразу, ещё до окна с итогом
+    const matedKing = getKingSquare(game.turn());
+    if (matedKing) $(`#board .square-${matedKing}`).addClass('highlight-check highlight-mate');
   } else if (game.in_check()) {
     text = t('{side} под шахом.', { side: sideLabel });
     const kingSq = getKingSquare(game.turn());
@@ -570,9 +580,15 @@ function checkGameOver() {
   const achvOutcome = (state.mode === 'friend' || state.mode === 'online') ? 'draw' : (outcome === 'player_win' ? 'win' : (outcome === 'character_win' ? 'loss' : 'draw'));
   reportAchievementGameEnd(achvOutcome);
   if (state.mode === 'online') onlineReportFinish(winnerColor || 'draw', reason === 'mate' || reason === 'stalemate' ? reason : 'draw');
-  showResultModal(text, outcome, reason, winnerColor);
+  // После мата доска остаётся на виду: ход доезжает, король мигает красным —
+  // и только потом окно итога. Раньше оно закрывало доску сразу, и на телефоне
+  // матующий ход соперника было не разглядеть.
+  const revealMs = reason === 'mate' ? (winnerColor === state.playerColor ? MATE_REVEAL_WIN_MS : MATE_REVEAL_LOSS_MS) : 0;
+  showResultModal(text, outcome, reason, winnerColor, { revealMs });
   return true;
 }
+const MATE_REVEAL_LOSS_MS = 2600;
+const MATE_REVEAL_WIN_MS = 1600;
 
 // Чем закончилась партия: reason определяет заголовок и подпись в итоговом окне
 const RESULT_REASON_LABEL = {
@@ -613,23 +629,32 @@ function renderResultStats(reason) {
 }
 
 // winner — цвет победителя ('w' | 'b') или null при ничьей: нужен для истории и PGN.
-function showResultModal(text, outcome = 'draw', reason = 'over', winner = null) {
+function showResultModal(text, outcome = 'draw', reason = 'over', winner = null, { revealMs = 0 } = {}) {
   saveFinishedGame(buildGameRecord({ reason, winner, summary: text }));
   state.resultText = text;
-  updateStatus(); // снимает подсветку хода и пишет итог под доской
+  updateStatus(); // пишет итог под доской
   if (outcome === 'player_win') playSound('win');
   else if (outcome === 'character_win') playSound('lose');
+  // Персонаж обдумывает партию, пока игрок смотрит на доску
+  const isCharacterGame = state.mode === 'characters' && state.character;
+  if (isCharacterGame) {
+    renderCharacterResultLoading();
+    generateCharacterEndSummary(text, outcome);
+  }
+  const gameStartedAt = state.gameStartedAt;
+  const open = () => {
+    if (gameStartedAt !== state.gameStartedAt) return; // за паузу начали новую партию
+    fillResultModal(text, outcome, reason, !!isCharacterGame);
+  };
+  if (revealMs > 0) setTimeout(open, revealMs);
+  else open();
+}
+
+function fillResultModal(text, outcome, reason, isCharacterGame) {
   $id('resultTitle').textContent = resultTitleFor(reason, outcome);
   $id('resultText').textContent = text;
   renderResultStats(reason);
-  const charBlock = $id('characterResultBlock');
-  if (state.mode === 'characters' && state.character) {
-    charBlock.classList.remove('hidden');
-    renderCharacterResultLoading();
-    generateCharacterEndSummary(text, outcome);
-  } else {
-    charBlock.classList.add('hidden');
-  }
+  $id('characterResultBlock').classList.toggle('hidden', !isCharacterGame);
   // Реванш по ссылке — новой ссылкой с главного экрана
   $id('rematchBtn').classList.toggle('hidden', state.mode === 'online');
   showModal('resultModal');

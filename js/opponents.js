@@ -173,18 +173,7 @@ function naturalBlunderMove(fen, candidates) {
   const plies = game.history().length + (parseInt(fen.split(' ')[5], 10) - 1) * 2;
   const options = game.moves({ verbose: true }).filter(m => !engineMoves.has(m.from + m.to));
   if (!options.length) return null;
-  const weights = options.map((m) => {
-    let w = 1;
-    if (m.captured) w += 2 + NATURAL_PIECE_VALUE[m.captured] / 2;
-    if (m.san.includes('+')) w += 2;
-    if (m.flags.includes('k') || m.flags.includes('q')) w += 2;
-    if ((m.piece === 'n' || m.piece === 'b') && m.from[1] === back) w += 2.5; // развитие
-    if (m.piece === 'p' && (m.from[0] === 'd' || m.from[0] === 'e')) w += 1.5;
-    if (m.piece === 'k' && !m.flags.includes('k') && !m.flags.includes('q')) w *= 0.15;
-    if (m.piece === 'p' && (m.from[0] === 'a' || m.from[0] === 'h')) w *= 0.4;
-    if (m.piece === 'q' && plies < 16) w *= 0.5; // ранний выход ферзя — реже
-    return w;
-  });
+  const weights = options.map((m) => hangFactor(game, m) * naturalMoveWeight(m, back, plies));
   let r = Math.random() * weights.reduce((a, b) => a + b, 0);
   let chosen = options[0];
   for (let i = 0; i < options.length; i++) {
@@ -192,6 +181,61 @@ function naturalBlunderMove(fen, candidates) {
     if (r <= 0) { chosen = options[i]; break; }
   }
   return { move: chosen.from + chosen.to + (chosen.promotion || ''), score: null };
+}
+
+// Живой игрок зевает чаще пешку или лёгкую фигуру, чем ферзя: ферзя под бой
+// пешкой или конём ставят редко. Раньше зевок не смотрел, что повиснет, и
+// персонаж на 850 отдавал ферзя за коня одним ходом (17.Qc2?? Nxc2).
+const HANG_FACTOR = { q: 0.1, r: 0.25, b: 0.55, n: 0.55, p: 0.85, k: 1 };
+function hangFactor(game, m) {
+  game.move(m);
+  const attackers = game.moves({ verbose: true }).filter(r => r.to === m.to && r.captured);
+  game.undo();
+  if (!attackers.length) return 1;
+  const piece = m.promotion || m.piece;
+  const cheapest = Math.min(...attackers.map(a => NATURAL_PIECE_VALUE[a.piece] || 0));
+  return cheapest < NATURAL_PIECE_VALUE[piece] ? HANG_FACTOR[piece] : 0.85;
+}
+
+function naturalMoveWeight(m, back, plies) {
+  let w = 1;
+  if (m.captured) w += 2 + NATURAL_PIECE_VALUE[m.captured] / 2;
+  if (m.san.includes('+')) w += 2;
+  if (m.flags.includes('k') || m.flags.includes('q')) w += 2;
+  if ((m.piece === 'n' || m.piece === 'b') && m.from[1] === back) w += 2.5; // развитие
+  if (m.piece === 'p' && (m.from[0] === 'd' || m.from[0] === 'e')) w += 1.5;
+  if (m.piece === 'k' && !m.flags.includes('k') && !m.flags.includes('q')) w *= 0.15;
+  if (m.piece === 'p' && (m.from[0] === 'a' || m.from[0] === 'h')) w *= 0.4;
+  if (m.piece === 'q' && plies < 16) w *= 0.5; // ранний выход ферзя — реже
+  return w;
+}
+
+// Оценка для выбора хода. Раньше она обрезалась до ±10 пешек, как в разборе,
+// и за этой чертой все ходы выглядели одинаково: в проигранной позиции
+// персонаж раздавал фигуры подряд (28.Be1?? Qxe1), а в выигранной не ставил
+// мат. Здесь мат дороже любого материала, а материал считается до ±25 пешек.
+function choiceScore(score) {
+  if (score == null) return 0;
+  if (score > 50000) return 3000 - (100000 - score) * 10; // мат в N за нас
+  if (score < -50000) return -3000 + (score + 100000) * 10; // мат в N нам
+  return clamp(score, -2500, 2500);
+}
+
+// Человеческие привычки: не гонять фигуру туда-обратно (6.Qe2 7.Qd1,
+// 9.Rb1 12.Ra1), в дебюте развивать фигуры, а не играть Na3 и ранний ферзь.
+// Сдвигают выбор только между близкими по силе ходами.
+function humanMoveBonus(d, ctx) {
+  const from = d.uci.slice(0, 2);
+  const to = d.uci.slice(2, 4);
+  let bonus = 0;
+  if (ctx.lastOwn && ctx.lastOwn.from === to && ctx.lastOwn.to === from) bonus -= 60;
+  if (ctx.plies < 20) {
+    const piece = ctx.game.get(from);
+    if (piece && (piece.type === 'n' || piece.type === 'b') && from[1] === ctx.back) bonus += 15;
+    if (piece && piece.type === 'n' && (to[0] === 'a' || to[0] === 'h')) bonus -= 30;
+    if (piece && piece.type === 'q' && ctx.plies < 12) bonus -= 25;
+  }
+  return bonus;
 }
 
 // Выбор хода по характеру — локально, без нейросети. Каждому варианту движка
@@ -202,10 +246,10 @@ function naturalBlunderMove(fen, candidates) {
 function pickCharacterMove(fen, candidates) {
   const c = state.character;
   const policy = characterMovePolicy(c);
-  const topScore = cappedCp(candidates[0].score);
+  const topScore = choiceScore(candidates[0].score);
   // Подставили фигуру — лучший ход на 2+ пешки сильнее остальных. Чаще всего
   // персонаж это видит и забирает; зевнуть ход в ответ здесь было бы нелепо.
-  const freeGap = candidates.length > 1 ? topScore - cappedCp(candidates[1].score) : 0;
+  const freeGap = candidates.length > 1 ? topScore - choiceScore(candidates[1].score) : 0;
   if (freeGap >= 200 && Math.random() < policy.noticeFree) return candidates[0];
 
   if (Math.random() < policy.blunderChance) {
@@ -214,6 +258,14 @@ function pickCharacterMove(fen, candidates) {
   }
   const described = describeCandidateMoves(fen, candidates);
   if (described.length <= 1) return candidates[0];
+  const game = new Chess(fen);
+  const history = state.game ? state.game.history({ verbose: true }) : [];
+  const ctx = {
+    game,
+    back: game.turn() === 'w' ? '1' : '8',
+    plies: (parseInt(fen.split(' ')[5], 10) - 1) * 2 + (game.turn() === 'b' ? 1 : 0),
+    lastOwn: history.length >= 2 ? history[history.length - 2] : null,
+  };
 
   const logits = described.map((d) => {
     let bonus = 0;
@@ -221,7 +273,8 @@ function pickCharacterMove(fen, candidates) {
     if (d.tags.includes('шах')) bonus += 30 * traitK(c.aggression) + 15 * traitK(c.combination);
     if (d.tags.includes('рокировка')) bonus += 25 * policy.caution;
     if (d.isCapture && traitK(c.endgame) > 0.6) bonus += 10; // любители эндшпиля охотно меняются
-    const loss = topScore - cappedCp(d.score);
+    bonus += humanMoveBonus(d, ctx);
+    const loss = topScore - choiceScore(d.score);
     return (-loss + bonus) / policy.temperature;
   });
   const maxLogit = Math.max(...logits);
@@ -315,18 +368,28 @@ async function requestCharacterMove() {
 // Персонаж всегда помнит, что прямо сейчас играет с игроком в шахматы.
 // На вопросы отвечает по-человечески и по существу (не сводит любой вопрос к
 // шахматам), а сам заговаривает только о партии — с опорой на разговор.
+// Слово «собеседник» в пометках — это и есть соперник по партии: модели
+// прямо сказано, что третьих лиц нет. Раньше указания вида «Поприветствуйте
+// соперника» звучали как просьба посредника, и персонаж отвечал ему про
+// игрока: «посмотрим, разглядит ли этот ваш противник мой план».
 function buildCharacterPersonaPrompt() {
   const c = state.character;
+  const acc = typeof getAccount === 'function' ? getAccount() : null;
+  const playerName = acc && acc.name ? String(acc.name).slice(0, 24) : '';
   return `Ты — ${c.name}. ${c.shortDescription}
-Прямо сейчас ты играешь партию в шахматы против собеседника и переговариваешься с ним за доской. Ты живая личность со своим характером, юмором и настроением, а не бот.
+Прямо сейчас ты сидишь за шахматной доской напротив человека, играешь с ним партию и переговариваешься. Он и есть твой соперник; дальше он называется «собеседник».${playerName ? ` Его зовут ${playerName} — можешь иногда звать его по имени.` : ''} Кроме вас двоих здесь никого нет. Ты живая личность со своим характером, юмором и настроением, а не бот.
 Как ты играешь: ${c.style}
 Как ты говоришь: ${c.tone}${c.persona ? `\nО тебе: ${c.persona}` : ''}
 
 Правила:
-- Ты всегда помнишь, что идёт партия: кто как сходил, как складывается игра, о чём вы уже говорили. Пометки [Фон: …] — это то, что происходит на доске, а не слова собеседника.
+- Всегда говори прямо с собеседником, лицом к лицу: «ты» или «вы» — как принято у твоего персонажа. Никогда не говори о нём в третьем лице («этот твой противник», «мой соперник», «он») и не обращайся к кому-то третьему — зрителям, ведущему, помощнику.
+- Пометки в квадратных скобках пишет программа, а не собеседник: [Фон: …] — что сейчас на доске, [Событие: …] — что только что случилось в партии. Не отвечай на них как на чужие слова, не цитируй и не упоминай их.
+- Ты всегда помнишь, что идёт партия: кто как сходил, как складывается игра, о чём вы уже говорили.
 - Когда собеседник что-то спрашивает или говорит, отвечай по существу и по-человечески, даже если это не о шахматах: не переводи каждую реплику в шахматы и не притягивай шахматные метафоры. Можно коротко вернуться к партии, если это к месту.
 - Когда говоришь сам, без вопроса собеседника, — говори о партии: о ходах, ситуации на доске, своих планах и настроении от игры. Опирайся на то, о чём вы уже говорили: подхвати шутку, напомни сказанное, ответь на старую подколку.
-- Говори как человек: ${AI_LANGUAGE}, от первого лица, 1–3 предложения, без списков, кавычек и разметки. Можно шутить, спорить, ворчать — в своём характере. Не будь услужливым ассистентом и не повторяй одни и те же фразы.
+- Говори как человек: ${AI_LANGUAGE}, от первого лица, 1–3 предложения, без списков, кавычек и разметки. Можно шутить, спорить, ворчать — в своём характере. Не будь услужливым ассистентом.
+- Знаменитые фразы и словечки персонажа говори так, как они звучат в официальном переводе или дубляже на этом языке (у Джека Воробья по-русски — «смекаешь?», а не «савви»). Не вставляй иностранные слова, записанные русскими буквами, если так не говорят в переводе.
+- Не повторяйся: коронную фразу или своё полное имя — не чаще чем в одной реплике из нескольких, и не начинай реплики одинаково.
 - Ты соперник: не подсказывай собеседнику ходы и не оценивай позицию в его пользу, даже намёком. Если просят — откажи по-своему.
 - Ходы бери только из [Фон]: там перечислены последние ходы и кто их сделал. Не называй ходов, которых там нет, и не объявляй, какой ход сделаешь следующим — его выбираешь не ты в разговоре, а партия.`;
 }
@@ -379,12 +442,14 @@ async function characterReact(context, isAuto = false) {
     const messages = [
       { role: 'system', content: buildCharacterPersonaPrompt() },
       ...trimHistory(state.chatApiHistory, 10),
-      { role: 'user', content: `[Фон: ${describeGameForCharacter()}. ${context}]\nСкажи сам, без вопроса собеседника, одну-две фразы о партии в своём образе, учитывая ваш разговор.` },
+      { role: 'user', content: `[Фон: ${describeGameForCharacter()}]\n[Событие: ${context}]\n[Собеседник сейчас молчит. Скажи ему сам одну-две фразы о партии в своём образе, учитывая ваш разговор.]` },
     ];
     const reply = await provodChat(messages, { temperature: 1.0, kind: 'game', task: 'character' });
     const clean = stripMarkdown(reply).replace(/^["«]+|["»]+$/g, '').trim();
-    // Пока шёл запрос, игрок начал новую партию — реплика уже не к месту
+    // Пока шёл запрос, игрок начал новую партию или партия закончилась —
+    // реплика уже не к месту: после мата за персонажа говорит итоговое окно
     if (!clean || gameStartedAt !== state.gameStartedAt) return;
+    if (isAuto && state.isGameOver) return;
 
     if (isAuto) {
       // проверка на дубликат среди последних 5 реплик
@@ -417,17 +482,17 @@ function triggerCharacterEvents(move, isUserMove) {
   const flavor = state.lastMoveFlavor;
   state.lastMoveFlavor = null;
   const game = state.game;
-  const isMate = game.in_checkmate();
+  // Партия окончена — в чат персонаж больше не пишет: его слова о партии
+  // (настроение, любимый момент, комментарий) показывает итоговое окно.
+  if (game.game_over()) return;
   // Игрок ждёт ответа на свой вопрос — не перебиваем его самостоятельной
   // репликой, иначе в чате окажутся два ответа подряд.
   if (state.isAsking || state.characterTyping) return;
-  // Мат звучит всегда, остальное — не чаще раза в CHARACTER_REPLY_COOLDOWN_MS
+  // Не чаще раза в CHARACTER_REPLY_COOLDOWN_MS
   const isBusy = state.autoReplyPending || Date.now() - state.lastAutoReplyTime < CHARACTER_REPLY_COOLDOWN_MS;
-  if (!isMate && isBusy) return;
+  if (isBusy) return;
   let event = null;
-  if (isMate) {
-    event = isUserMove ? 'mate_lost' : 'mate_won';
-  } else if (!isUserMove && move.captured === 'q') {
+  if (!isUserMove && move.captured === 'q') {
     event = 'captured_queen';
   } else if (isUserMove && move.captured === 'q') {
     event = 'player_captured_queen';
@@ -443,17 +508,16 @@ function triggerCharacterEvents(move, isUserMove) {
     event = 'quiet';
   }
   if (!event) return;
+  // От лица персонажа: «ты» — это он сам, «собеседник» — игрок напротив.
   const contexts = {
-    mate_won: `Вы только что поставили сопернику мат ходом ${move.san}.`,
-    mate_lost: 'Соперник только что поставил вам мат.',
-    captured_queen: `Вы взяли ферзя соперника ходом ${move.san}.`,
-    sacrifice: `Вы сделали рискованное взятие ходом ${move.san}, следуя своему стилю игры.`,
-    good_combo: `Вы нашли сильную тактическую комбинацию ходом ${move.san}.`,
-    opponent_mistake: 'Соперник только что допустил заметную ошибку в партии.',
-    character_gives_check: `Вы объявили сопернику шах ходом ${move.san}.`,
-    player_gives_check: 'Соперник только что объявил вам шах.',
-    player_captured_queen: 'Соперник только что взял вашего ферзя.',
-    quiet: `Партия идёт спокойно, вы только что сыграли ${move.san}. Скажи собеседнику что-нибудь о партии: как тебе игра, что задумал, подколи его за недавний ход или вспомни, о чём вы говорили.`,
+    captured_queen: `ты взял ферзя собеседника ходом ${move.san}.`,
+    sacrifice: `ты сделал рискованное взятие ходом ${move.san}, как любишь.`,
+    good_combo: `ты нашёл сильный тактический удар ходом ${move.san}.`,
+    opponent_mistake: 'собеседник только что заметно ошибся.',
+    character_gives_check: `ты объявил собеседнику шах ходом ${move.san}.`,
+    player_gives_check: 'собеседник только что объявил тебе шах.',
+    player_captured_queen: 'собеседник только что взял твоего ферзя.',
+    quiet: `партия идёт спокойно, ты только что сыграл ${move.san}. Скажи собеседнику что-нибудь о партии: как тебе игра, что задумал, подколи его за недавний ход или вспомни, о чём вы говорили.`,
   };
   if (event) {
     const context = contexts[event];
@@ -482,43 +546,155 @@ function renderCharacterResultLoading() {
   $id('characterResultContent').innerHTML = `<p class="analysis-loading">${t('Персонаж обдумывает партию…')}</p>`;
 }
 
-function renderCharacterResult({ mood, favoriteMoment, comment }) {
+// moment — { ply, move, fenAfter, line } или null, если показать на доске нечего
+function renderCharacterResult({ mood, favoriteMoment, comment, moment = null }) {
   const c = state.character;
-  lastCharacterResult = { mood, favoriteMoment, comment };
+  lastCharacterResult = { mood, favoriteMoment, comment, moment };
+  const momentRow = moment
+    ? `<button type="button" class="char-result-row char-result-moment" id="charFavMomentBtn" aria-haspopup="dialog">
+        <span>${t('Любимый момент')}</span>
+        <b>${escapeHtml(favoriteMoment)}</b>
+        <span class="char-result-moment-move">${escapeHtml(momentMoveLabel(moment))} ›</span>
+      </button>`
+    : `<div class="char-result-row"><span>${t('Любимый момент')}</span><b>${escapeHtml(favoriteMoment)}</b></div>`;
   $id('characterResultContent').innerHTML = `
     <div class="char-result-head">
       <span class="char-result-icon">♞</span>
       <span class="char-result-name">${escapeHtml(c ? c.name : '')}</span>
       <span class="char-result-mood">${achievementIconSvg(CHARACTER_MOOD_ICONS[mood])}</span>
     </div>
-    <div class="char-result-row"><span>${t('Любимый момент')}</span><b>${escapeHtml(favoriteMoment)}</b></div>
+    ${momentRow}
     <p class="char-result-comment">${escapeHtml(comment)}</p>
   `;
+  const btn = $id('charFavMomentBtn');
+  if (btn) btn.addEventListener('click', () => { playSound('ui'); openFavoriteMoment(); });
 }
+
+/* ---- Любимый момент: ход на доске и реплика персонажа ----
+   Нейросеть не придумывает ход сама — выбирает из моментов, которые нашла
+   программа (взятия, шахи, мат, превращения, резкие повороты оценки), иначе
+   она называет ходы, которых в партии не было. */
+function momentMoveLabel(moment) {
+  const fullMove = Math.floor(moment.ply / 2) + 1;
+  return `${fullMove}${moment.move.color === 'w' ? '.' : '…'} ${moment.move.san}`;
+}
+
+const KEY_MOMENT_LIMIT = 6;
+function collectKeyMoments() {
+  const history = state.game ? state.game.history({ verbose: true }) : [];
+  const fens = state.fenHistory;
+  const sign = state.aiColor === 'w' ? 1 : -1;
+  const scored = history.map((move, ply) => {
+    let interest = 0;
+    if (move.captured) interest += PIECE_VALUES[move.captured] || 1;
+    if (move.san.endsWith('#')) interest += 20;
+    else if (move.san.includes('+')) interest += 1.5;
+    if (move.promotion) interest += 6;
+    // Резкий поворот в пользу персонажа — обычно ошибка игрока или удачный удар
+    const before = scoreAbsoluteWhite(analysisCache.get(fens[ply]), fens[ply]);
+    const after = scoreAbsoluteWhite(analysisCache.get(fens[ply + 1]), fens[ply + 1]);
+    if (before != null && after != null) {
+      const swing = (cappedCp(after) - cappedCp(before)) * sign;
+      if (swing > 150) interest += Math.min(8, swing / 100);
+    }
+    if (ply < 8) interest *= 0.3; // дебютные размены редко запоминаются
+    return { ply, move, fenAfter: fens[ply + 1] || null, interest };
+  }).filter(m => m.fenAfter);
+  let picked = scored.filter(m => m.interest > 0)
+    .sort((a, b) => b.interest - a.interest)
+    .slice(0, KEY_MOMENT_LIMIT);
+  if (!picked.length) picked = scored.slice(-3);
+  return picked.sort((a, b) => a.ply - b.ply);
+}
+
+function describeKeyMoments(moments) {
+  return moments.map((m, i) => {
+    const who = m.move.color === state.aiColor ? 'ты' : 'соперник';
+    return `${i + 1}) ${momentMoveLabel(m)} — ход делал ${who}: ${aiDescribeMove(m.move)}`;
+  }).join('\n');
+}
+
+let favMomentBoard = null;
+function openFavoriteMoment() {
+  const moment = lastCharacterResult && lastCharacterResult.moment;
+  if (!moment) return;
+  const c = state.character;
+  const mine = moment.move.color === state.aiColor;
+  $id('favMomentSan').innerHTML = `<b>${escapeHtml(momentMoveLabel(moment))}</b><span>${mine ? escapeHtml(t('ход {name}', { name: c ? c.name : t('персонажа') })) : t('ваш ход')}</span>`;
+  $id('favMomentName').textContent = c ? c.name : '';
+  $id('favMomentLine').textContent = moment.line || lastCharacterResult.favoriteMoment;
+  $id('favMomentArrow').innerHTML = '';
+  showModal('favMomentModal');
+  const orientation = state.playerColor === 'b' ? 'black' : 'white';
+  // Доску строим, когда окно уже видно: chessboard.js меряет контейнер
+  requestAnimationFrame(() => {
+    if (!favMomentBoard) {
+      favMomentBoard = Chessboard('favMomentBoard', { position: moment.fenAfter, orientation, draggable: false, pieceTheme: pieceThemeFn, showNotation: false });
+    } else {
+      favMomentBoard.orientation(orientation);
+      favMomentBoard.resize();
+      favMomentBoard.position(moment.fenAfter, false);
+    }
+    const { from, to } = moment.move;
+    document.querySelectorAll('#favMomentBoard [data-square]').forEach((el) => {
+      el.classList.toggle('md-sq-from', el.dataset.square === from);
+      el.classList.toggle('md-sq-to', el.dataset.square === to);
+    });
+    const svg = $id('favMomentArrow');
+    const boardEl = document.querySelector('#favMomentBoard .board-b72b1');
+    if (boardEl) {
+      const b = boardEl.getBoundingClientRect();
+      const box = svg.parentElement.getBoundingClientRect();
+      Object.assign(svg.style, { left: `${b.left - box.left}px`, top: `${b.top - box.top}px`, width: `${b.width}px`, height: `${b.height}px` });
+    }
+    drawBoardArrow(svg, from, to, mine ? 'var(--accent)' : ARROW_COLORS.neutral, { flipped: orientation === 'black' });
+  });
+}
+$id('favMomentCloseBtn').addEventListener('click', () => hideModal('favMomentModal'));
+$id('favMomentModal').addEventListener('click', (e) => { if (e.target === e.currentTarget) hideModal('favMomentModal'); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$id('favMomentModal').classList.contains('hidden')) hideModal('favMomentModal');
+});
 
 async function generateCharacterEndSummary(resultText, outcome) {
   const c = state.character;
   if (!c) return;
+  const gameStartedAt = state.gameStartedAt;
   const pgn = state.game ? state.game.pgn() : '';
-  const moodMap = { player_win: 'персонаж проиграл партию', character_win: 'персонаж выиграл партию', draw: 'партия завершилась вничью' };
-  const prompt = `Персонаж: ${c.name}. Стиль игры: ${c.style}. Манера общения: ${c.tone}.
-Черты характера: агрессивность ${c.aggression}/100, жертвы ${c.sacrifice}/100, эндшпиль ${c.endgame}/100, эмоциональность ${c.emotionality}/100.
-Партия завершилась: ${resultText} (${moodMap[outcome] || 'результат неизвестен'}).
+  const moments = collectKeyMoments();
+  const moodMap = { player_win: 'ты проиграл партию', character_win: 'ты выиграл партию', draw: 'партия завершилась вничью' };
+  const prompt = `Ты — ${c.name}. ${c.shortDescription}
+Как ты играешь: ${c.style}
+Как ты говоришь: ${c.tone}
+Ты только что доиграл партию в шахматы с соперником: ${resultText} (${moodMap[outcome] || 'результат неизвестен'}).
 История партии (PGN): ${pgn || '—'}
+Заметные моменты партии (посчитаны программой по доске):
+${describeKeyMoments(moments) || '—'}
+
+Выбери из этого списка свой любимый момент — тот, что тебе как персонажу запомнился больше всего, — и скажи о нём пару слов сопернику.
+Пиши ${AI_LANGUAGE}, от первого лица, обращаясь прямо к сопернику на «ты» или «вы» (как принято у твоего персонажа), без разметки. Знаменитые фразы персонажа — как в официальном переводе или дубляже, без иностранных слов русскими буквами.
 Ответь СТРОГО валидным JSON без markdown и пояснений, в формате:
-{"mood":"настроение персонажа, одно слово из списка: ${Object.keys(CHARACTER_MOOD_ICONS).join(', ')}","favoriteMoment":"короткая фраза о любимом моменте партии, до 12 слов, ${AI_LANGUAGE}","comment":"комментарий персонажа о партии в его манере общения, 1-2 предложения, ${AI_LANGUAGE}"}`;
+{"mood":"твоё настроение, одно слово из списка: ${Object.keys(CHARACTER_MOOD_ICONS).join(', ')}","momentNumber":номер момента из списка,"favoriteMoment":"короткое название момента, до 8 слов","momentLine":"что ты говоришь сопернику об этом ходе, 1–2 предложения","comment":"твой итоговый комментарий о партии, 1–2 предложения"}`;
   const fallbackMood = outcome === 'character_win' ? 'calm' : (outcome === 'player_win' ? 'sad' : 'neutral');
+  const clean = (v) => stripMarkdown(String(v || '')).replace(/^["«]+|["»]+$/g, '').trim();
   try {
     const raw = await provodChat([{ role: 'user', content: prompt }], { temperature: 0.85, kind: 'game', task: 'character' });
+    if (gameStartedAt !== state.gameStartedAt) return; // уже идёт новая партия
     const parsed = JSON.parse(extractJson(raw));
     const mood = String(parsed.mood || '').trim().toLowerCase();
+    const idx = parseInt(parsed.momentNumber, 10) - 1;
+    // Номер вне списка — берём самый яркий момент, а не выдуманный ход
+    const base = moments[idx] || moments.slice().sort((a, b) => b.interest - a.interest)[0] || null;
+    const line = clean(parsed.momentLine);
     renderCharacterResult({
       mood: CHARACTER_MOOD_ICONS[mood] ? mood : fallbackMood,
-      favoriteMoment: stripMarkdown(String(parsed.favoriteMoment || '')).trim() || t('Момент, который запомнится надолго.'),
-      comment: stripMarkdown(String(parsed.comment || '')).trim() || t('Хорошая была партия.'),
+      favoriteMoment: clean(parsed.favoriteMoment) || t('Момент, который запомнится надолго.'),
+      comment: clean(parsed.comment) || t('Хорошая была партия.'),
+      moment: base ? { ply: base.ply, move: base.move, fenAfter: base.fenAfter, line } : null,
     });
   } catch (error) {
     console.error('Ошибка итогового комментария персонажа:', error);
+    if (gameStartedAt !== state.gameStartedAt) return;
     renderCharacterResult({ mood: fallbackMood, favoriteMoment: '—', comment: t('Комментарий персонажа сейчас недоступен.') });
     lastCharacterResult = null; // заглушка не попадает на картинку «Поделиться»
   }

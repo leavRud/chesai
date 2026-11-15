@@ -210,7 +210,7 @@ function renderProfileView() {
   if (!avatarEl || !nameEl || !eloEl) return;
 
   if (acc) {
-    avatarEl.textContent = acc.avatar || '♟';
+    paintAvatar(avatarEl, acc);
     nameEl.textContent = acc.name || t('Игрок');
     eloEl.textContent = `${Number.isFinite(acc.elo) ? acc.elo : 1200} Elo`;
     eloEl.classList.remove('hidden');
@@ -239,7 +239,7 @@ function renderProfileView() {
     renderProfileQuota();
     refreshChatQuota();
   } else {
-    avatarEl.textContent = '♟';
+    paintAvatar(avatarEl, {});
     nameEl.textContent = t('Гость');
     eloEl.classList.add('hidden');
     if (statsEl) statsEl.classList.add('hidden');
@@ -252,22 +252,24 @@ function renderProfileView() {
 function openProfileEditModal() {
   const acc = getAccount() || { name: '', avatar: '♟', elo: 1200 };
   $id('profileEditNameInput').value = acc.name || '';
-  document.querySelectorAll('#profileAvatarPicker .avatar-choice-btn').forEach(btn => {
-    btn.classList.toggle('is-active', btn.dataset.avatar === (acc.avatar || '♟'));
-  });
   navigateTo('profile-edit');
+  startProfileEditDraft(acc); // js/profile-frames.js
 }
-function handleProfileEditSave() {
+// Имя, аватар и рамка уходят и в базу: раньше они сохранялись только в этом
+// браузере и пропадали при следующей загрузке профиля с сервера.
+async function handleProfileEditSave() {
   const acc = getAccount() || { elo: 1200 };
   const name = ($id('profileEditNameInput').value || '').trim().slice(0, 24) || t('Игрок');
-  const activeAvatarBtn = document.querySelector('#profileAvatarPicker .avatar-choice-btn.is-active');
-  acc.name = name;
-  acc.avatar = activeAvatarBtn ? activeAvatarBtn.dataset.avatar : (acc.avatar || '♟');
+  const patch = { name, avatar: profileEditDraft.avatar || '♟', frame: profileEditDraft.frame || 'none' };
+  Object.assign(acc, patch);
   if (!Number.isFinite(acc.elo)) acc.elo = 1200;
   saveAccount(acc);
   navigateBack(); // Save -> возвращаемся в Profile (renderProfileView вызовется сам)
   renderMenuProfile();
-  showToast(t('Профиль обновлён'));
+  if (state.game && !state.isGameOver) renderPlayerBars();
+  const { data: { user } } = await sb.auth.getUser();
+  const ok = user ? await syncProfileToSupabase(user.id, patch) : true;
+  showToast(ok ? t('Профиль обновлён') : t('Профиль сохранён на этом устройстве, но не на сервере'));
 }
 
 /* ---- Достижения ----

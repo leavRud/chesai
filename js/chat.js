@@ -251,18 +251,22 @@ function removeCharacterTypingBubble() {
   if (el) el.remove();
 }
 
+// Подсказка в поле ввода для текущей партии. Считается каждый раз заново:
+// раньше она запоминалась один раз, и в партии с новым персонажем поле
+// звало по имени предыдущего.
+function defaultChatPlaceholder() {
+  if (state.mode === 'characters' && state.character) return t('Скажите что-нибудь {name}…', { name: state.character.name });
+  if (state.mode === 'online') return t('Спросите после партии…');
+  return t('Спросите о позиции, ходе, угрозах, совете…');
+}
+
 function setCharacterTyping(isTyping) {
   state.characterTyping = isTyping;
   const input = $id('chatInput');
   input.disabled = isTyping;
-  // Обычную подсказку запоминаем при первом включении: к этому моменту
-  // интерфейс уже переведён на выбранный язык.
-  if (isTyping && input.dataset.placeholder == null) input.dataset.placeholder = input.getAttribute('placeholder') || '';
-  if (isTyping && state.character) {
-    input.setAttribute('placeholder', t('{name} пишет…', { name: state.character.name }));
-  } else if (input.dataset.placeholder != null) {
-    input.setAttribute('placeholder', input.dataset.placeholder);
-  }
+  input.setAttribute('placeholder', isTyping && state.character
+    ? t('{name} пишет…', { name: state.character.name })
+    : defaultChatPlaceholder());
   $id('askBtn').disabled = isTyping || state.isAsking || input.value.trim().length === 0;
   if (isTyping) showCharacterTypingBubble();
   else removeCharacterTypingBubble();

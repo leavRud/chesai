@@ -28,11 +28,11 @@ function clearAccount() {
 async function fetchProfileFromSupabase(userId) {
   const { data, error } = await sb
     .from('profiles')
-    .select('name, avatar, elo')
+    .select('name, avatar, elo, frame')
     .eq('id', userId)
     .single();
   if (error || !data) return null;
-  const acc = { uid: userId, name: data.name, avatar: data.avatar || '♟', elo: data.elo ?? 1200 };
+  const acc = { uid: userId, name: data.name, avatar: data.avatar || '♟', frame: data.frame || 'none', elo: data.elo ?? 1200 };
   // История рейтинга живёт только в локальном кэше (в profiles её нет):
   // не теряем её при каждой загрузке профиля, иначе график Elo обнуляется.
   const prev = getAccount();
@@ -56,6 +56,7 @@ async function syncProfileToSupabase(userId, patch) {
     .update(patch)
     .eq('id', userId);
   if (error) console.error('Не удалось сохранить профиль в Supabase:', error);
+  return !error;
 }
 
 const ELO_HISTORY_LIMIT = 200;
@@ -113,14 +114,14 @@ function renderMenuProfile() {
 
   const acc = getAccount();
   if (acc) {
-    avatarEl.textContent = acc.avatar || '♟';
+    paintAvatar(avatarEl, acc); // js/profile-frames.js
     nameEl.textContent = acc.name || t('Игрок');
     eloEl.textContent = `${Number.isFinite(acc.elo) ? acc.elo : 1200} Elo`;
     eloEl.classList.remove('hidden');
     authBtn.classList.add('hidden');
     cardEl.classList.remove('is-guest');
   } else {
-    avatarEl.textContent = '♟';
+    paintAvatar(avatarEl, {});
     nameEl.textContent = t('Гость');
     eloEl.classList.add('hidden');
     authBtn.classList.remove('hidden');

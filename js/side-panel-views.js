@@ -408,10 +408,12 @@ function initProfileEditView() {
   if (profileEditInitialized) return;
   profileEditInitialized = true;
 
-  document.querySelectorAll('#profileAvatarPicker .avatar-choice-btn').forEach(btn => {
+  document.querySelectorAll('#profileAvatarPicker .avatar-choice-btn[data-avatar]').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('#profileAvatarPicker .avatar-choice-btn').forEach(b => b.classList.remove('is-active'));
-      btn.classList.add('is-active');
+      playSound('ui');
+      profileEditDraft.avatar = btn.dataset.avatar; // js/profile-frames.js
+      renderProfileEditAvatar();
+      renderFramePicker();
     });
   });
 

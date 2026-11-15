@@ -595,6 +595,41 @@
   </div>
 </div>
 
+<!-- ============ МОДАЛКА: ЛЮБИМЫЙ МОМЕНТ ПЕРСОНАЖА (js/opponents.js) ============ -->
+<div id="favMomentModal" class="modal-overlay hidden fav-moment-overlay">
+  <div class="modal neumorphic-raised fav-moment-modal" role="dialog" aria-modal="true" aria-labelledby="favMomentTitle">
+    <div class="fav-moment-header">
+      <div class="h2" role="heading" aria-level="2" id="favMomentTitle">Любимый момент</div>
+      <button id="favMomentCloseBtn" class="settings-close-btn" type="button" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="fav-moment-board-box">
+      <div id="favMomentBoard" class="mini-board"></div>
+      <svg id="favMomentArrow" class="move-detail-arrow" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+    </div>
+    <div id="favMomentSan" class="fav-moment-san"></div>
+    <div class="msg msg-character fav-moment-quote">
+      <span id="favMomentName" class="msg-character-name"></span>
+      <span id="favMomentLine" class="msg-character-text"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ============ МОДАЛКА: КАДРИРОВАНИЕ АВАТАРКИ (js/profile-frames.js) ============ -->
+<div id="avatarCropModal" class="modal-overlay hidden avatar-crop-overlay">
+  <div class="modal neumorphic-raised avatar-crop-modal" role="dialog" aria-modal="true" aria-labelledby="avatarCropTitle">
+    <div class="h2" role="heading" aria-level="2" id="avatarCropTitle">Ваша аватарка</div>
+    <p class="modal-sub">Передвиньте фото и приблизьте нужную часть.</p>
+    <div id="avatarCropView" class="avatar-crop-view">
+      <img id="avatarCropImg" class="avatar-crop-img" alt="" draggable="false">
+    </div>
+    <input id="avatarCropZoom" class="avatar-crop-zoom" type="range" min="0" max="100" value="0" aria-label="Масштаб">
+    <div class="modal-actions">
+      <button id="avatarCropSaveBtn" class="btn btn-accent" type="button">Готово</button>
+      <button id="avatarCropCancelBtn" class="btn btn-ghost" type="button">Отмена</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ МОДАЛКА: ИГРА С ДРУГОМ (js/online.js) ============ -->
 <div id="friendModal" class="modal-overlay hidden">
   <div class="modal neumorphic-raised wide friend-modal" role="dialog" aria-modal="true">
@@ -968,9 +1003,14 @@
       <!-- ===================== VIEW: РЕДАКТИРОВАНИЕ ПРОФИЛЯ ===================== -->
       <div id="view-profile-edit" class="side-view">
 
+        <div class="profile-edit-preview">
+          <div id="profileEditAvatarPreview" class="menu-avatar menu-avatar-lg">♟</div>
+        </div>
         <div class="menu-field">
           <span class="settings-row-label">Аватар</span>
           <div id="profileAvatarPicker" class="avatar-choice-row">
+            <button type="button" id="profileAvatarUploadBtn" class="avatar-choice-btn avatar-upload-btn" aria-label="Загрузить своё фото" title="Загрузить своё фото"><span data-icon="camera"></span></button>
+            <input id="profileAvatarFile" type="file" accept="image/*" class="hidden" aria-hidden="true" tabindex="-1">
             <button type="button" class="avatar-choice-btn" data-avatar="♟">♟</button>
             <button type="button" class="avatar-choice-btn" data-avatar="♞">♞</button>
             <button type="button" class="avatar-choice-btn" data-avatar="♝">♝</button>
@@ -978,6 +1018,11 @@
             <button type="button" class="avatar-choice-btn" data-avatar="♛">♛</button>
             <button type="button" class="avatar-choice-btn" data-avatar="♚">♚</button>
           </div>
+        </div>
+        <div class="menu-field">
+          <span class="settings-row-label">Рамка</span>
+          <p class="menu-field-note">Рамки открываются за достижения.</p>
+          <div id="profileFramePicker" class="frame-choice-grid"></div>
         </div>
         <div class="menu-field">
           <span class="settings-row-label">Имя / ник</span>
@@ -1538,6 +1583,7 @@
 <script src="js/online.js"></script>
 <script src="js/effects.js"></script>
 <script src="js/settings.js"></script>
+<script src="js/profile-frames.js"></script>
 <script src="js/account.js"></script>
 <script src="js/side-panel.js"></script>
 <script src="js/side-panel-views.js"></script>
