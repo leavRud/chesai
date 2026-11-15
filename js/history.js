@@ -106,7 +106,7 @@ function buildGameRecord({ reason, winner, summary }) {
     opponent: mode === 'characters' && state.character ? state.character.name.slice(0, 100)
       : mode === 'ai' ? 'Stockfish'
       : mode === 'online' ? (state.onlineOpponentName || t('Соперник')).slice(0, 100) : null,
-    opponent_elo: mode === 'characters' && state.character ? state.character.elo : (mode === 'ai' ? skillLevelToElo(state.skillLevel) : null),
+    opponent_elo: mode === 'characters' && state.character ? state.character.elo : (mode === 'ai' ? aiOpponentElo() : null),
     skill_level: mode === 'ai' ? state.skillLevel : null,
     character: mode === 'characters' && state.character ? state.character : null,
     moves: Math.ceil(plies / 2),
@@ -391,6 +391,7 @@ async function openSavedGame(rec) {
   state.playerColor = rec.player_color;
   state.aiColor = rec.player_color === 'w' ? 'b' : 'w';
   if (Number.isFinite(rec.skill_level)) state.skillLevel = rec.skill_level;
+  if (rec.mode === 'ai') state.aiLevel = aiLevelFromElo(rec.opponent_elo);
   state.character = rec.mode === 'characters' ? (rec.character || null) : null;
   state.onlineOpponentName = rec.mode === 'online' ? (rec.opponent || '') : '';
 

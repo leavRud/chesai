@@ -335,11 +335,11 @@ const Achievements = (function () {
       events: ['move'], check: ({ payload }) => !!payload.enPassant },
 
     // ===== Против Stockfish =====
-    { id: 'beat_easy', category: 'stockfish', icon: 'mood-smile', reward: 2, name: 'Лёгкий уровень', desc: 'Победить лёгкий уровень.',
+    { id: 'beat_easy', category: 'stockfish', icon: 'mood-smile', reward: 2, name: 'Лёгкий уровень', desc: 'Победить Stockfish на уровне до 1400.',
       events: ['gameEnd'], check: ({ payload }) => payload.mode === 'ai' && payload.outcome === 'win' && payload.skillLevel <= 8 },
-    { id: 'beat_medium', category: 'stockfish', icon: 'mood-neutral', reward: 5, name: 'Средний уровень', desc: 'Победить средний уровень.',
+    { id: 'beat_medium', category: 'stockfish', icon: 'mood-neutral', reward: 5, name: 'Средний уровень', desc: 'Победить Stockfish на уровне от 1600 до 2500.',
       events: ['gameEnd'], check: ({ payload }) => payload.mode === 'ai' && payload.outcome === 'win' && payload.skillLevel > 8 && payload.skillLevel < 20 },
-    { id: 'beat_hard', category: 'stockfish', icon: 'robot', reward: 50, name: 'Сложный уровень', desc: 'Победить сложный уровень.',
+    { id: 'beat_hard', category: 'stockfish', icon: 'robot', reward: 50, name: 'Сложный уровень', desc: 'Победить Stockfish на максимальном уровне.',
       events: ['gameEnd'], check: ({ payload }) => payload.mode === 'ai' && payload.outcome === 'win' && payload.skillLevel >= 20 },
     { id: 'rating_1500', category: 'stockfish', icon: 'trending-up', reward: 7, name: 'Рейтинг', desc: 'Достичь рейтинга 1500.',
       events: ['rating'], check: ({ payload }) => payload.elo >= 1500 },

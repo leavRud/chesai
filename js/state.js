@@ -55,6 +55,7 @@ const state = {
   capturedByWhite: [],
   capturedByBlack: [],
   skillLevel: 20,
+  aiLevel: 5, // уровень Stockfish (AI_LEVELS в home-screen.js)
   fenHistory: [],
   settings: {
     accent: localStorage.getItem('chessAccent') || 'gold',

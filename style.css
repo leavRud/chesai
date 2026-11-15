@@ -4106,3 +4106,22 @@ html.is-vk .chat-quota-buy { display: none !important; }
 .result-rating { margin: -4px 0 14px; font-size: 14px; font-weight: 700; color: var(--text-muted); }
 .result-rating[data-trend="up"] { color: #5CB87A; }
 .result-rating[data-trend="down"] { color: #E05555; }
+
+/* 12 уровней Stockfish: сетка 4×3 (js/home-screen.js, renderAiLevels) */
+.diff-level-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.diff-level-grid .diff-choice-btn { flex-direction: column; gap: 2px; padding: 9px 4px; }
+.diff-level-grid .diff-choice-name { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.diff-level-grid .diff-elo { font-size: 11px; font-weight: 500; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.diff-novice .diff-dot  { background: #5FAE6E; }
+.diff-amateur .diff-dot { background: #A9B84A; }
+.diff-club .diff-dot    { background: #D9A441; }
+.diff-master .diff-dot  { background: #D9773F; }
+.diff-max .diff-dot     { background: #C0574F; }
+.diff-novice.is-active  { border-color: #5FAE6E; }
+.diff-amateur.is-active { border-color: #A9B84A; }
+.diff-club.is-active    { border-color: #D9A441; }
+.diff-master.is-active  { border-color: #D9773F; }
+.diff-max.is-active     { border-color: #C0574F; }
+@media (max-width: 440px) {
+  .diff-level-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

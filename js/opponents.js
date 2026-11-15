@@ -22,24 +22,36 @@ function showEngineLoadingStatus() {
   if (!isEngineReady && isEngineLoading) $id('statusText').textContent = t('Загружаю движок…');
 }
 
+// Соперник уровня «Stockfish ≈1200»: средние черты характера, без дебютной
+// книги и реплик. Сила — та же откалиброванная, что у персонажей.
+function neutralAiPlayer(elo) {
+  return { elo, caution: 50, emotionality: 50, aggression: 50, sacrifice: 30, combination: 50, endgame: 50 };
+}
+
 async function requestAiMove() {
   if (!state.game || state.isGameOver || state.game.turn() !== state.aiColor) return;
   state.isThinking = true;
   setThinkingUI(true);
   updateStatus();
 
+  const level = currentAiLevel(); // js/home-screen.js
   const fenForSearch = state.game.fen();
-  const movetime = movetimeForSkill(state.skillLevel);
+  const gameStartedAt = state.gameStartedAt;
   showEngineLoadingStatus();
   await waitForEngine(3000);
-  const moveUci = await searchBestMove(fenForSearch, { movetime });
 
   let moveObj = null;
-  if (moveUci) {
-    const from = moveUci.substring(0, 2);
-    const to = moveUci.substring(2, 4);
-    const promotion = moveUci.length === 5 ? moveUci[4] : 'q';
-    moveObj = state.game.move({ from, to, promotion });
+  if (level.max) {
+    // «Максимум» — полная сила движка
+    const moveUci = await searchBestMove(fenForSearch, { movetime: movetimeForSkill(20) });
+    if (gameStartedAt !== state.gameStartedAt || state.game.fen() !== fenForSearch) return;
+    if (moveUci) moveObj = applyUciMove(moveUci);
+  } else {
+    const player = neutralAiPlayer(level.elo);
+    const movetime = movetimeForSkill(eloToSkillLevel(level.elo));
+    const candidates = await searchTopMoves(fenForSearch, { movetime, multipv: characterMovePolicy(player).multipv });
+    if (gameStartedAt !== state.gameStartedAt || state.game.fen() !== fenForSearch) return;
+    if (candidates.length) moveObj = applyUciMove(pickCharacterMove(fenForSearch, candidates, player).move);
   }
   if (moveObj === null) {
     moveObj = pickFallbackMove();
@@ -137,23 +149,57 @@ function describeCandidateMoves(fen, candidates) {
 
 const traitK = (v) => clamp(Number(v) || 0, 0, 100) / 100;
 
+// Заявленный рейтинг → «внутренний» уровень ошибок персонажа. Подобрано
+// 15.11.2026 симуляцией: персонажи играли сами с собой (по 16 партий на
+// уровень), игру оценивали разбором по шкале из js/engine.js (откалибрована
+// на партиях lichess), затем кривую «уровень → потеря» обратили. Без поправки
+// сила росла с рейтингом слишком круто. По одной партии разброс ±200 и больше.
+const CHARACTER_POLICY_ELO = [
+  [300, 657], [400, 836], [500, 920], [700, 982], [950, 1083], [1200, 1179],
+  [1500, 1300], [1800, 1438], [2100, 1558], [2400, 1761], [2600, 1996], [2850, 2213],
+];
+function characterPolicyElo(elo) {
+  const tbl = CHARACTER_POLICY_ELO;
+  const e = Number(elo) || 1000;
+  if (e <= tbl[0][0]) return tbl[0][1];
+  for (let i = 1; i < tbl.length; i++) {
+    if (e <= tbl[i][0]) {
+      const [a, x] = tbl[i - 1];
+      const [b, y] = tbl[i];
+      return x + (y - x) * (e - a) / (b - a);
+    }
+  }
+  return tbl[tbl.length - 1][1];
+}
+
 // Сила персонажа. Skill Level движка здесь не помогает: ходы персонажа берутся
 // из строк MultiPV (честные оценки), а не из bestmove, который Stockfish
-// намеренно портит на низком уровне. Поэтому слабость задаём сами — по той же
-// шкале «потеря за ход ↔ рейтинг» (cplForElo), по которой разбор партии
-// оценивает уровень игры. Так персонаж на 600 Elo и в разборе выглядит на 600.
+// намеренно портит на низком уровне. Поэтому слабость задаём сами:
 //  - temperature — насколько охотно персонаж играет ход хуже лучшего:
 //    чем она выше, тем чаще выбор падает на слабые варианты;
 //  - blunderChance — шанс «зевка»: ход, который движок даже не рассматривал;
 //  - multipv — слабым показываем больше вариантов, сильным только лучшие.
-// Осторожность делает игру точнее, эмоциональность — неровнее.
+// Всё считается от «внутреннего» уровня (characterPolicyElo), чтобы игра в
+// разборе выходила около заявленного рейтинга.
+// Осторожность делает игру точнее, эмоциональность — неровнее. Влияние черт
+// на силу намеренно небольшое (около ±100 Elo): калибровка сделана для
+// средних черт (50/50), и рейтинг в карточке должен оставаться честным.
+// Стиль черты меняют сильнее — см. бонусы в pickCharacterMove.
+const CALIBRATED_TEMPERATURE_MULT = 1.232;
+const CALIBRATED_BLUNDER_MULT = 1.24;
 function characterMovePolicy(c) {
-  const strength = clamp((Number(c.elo) - 500) / 2400, 0, 1); // 0 — новичок, 1 — гроссмейстер
-  const caution = traitK(c.caution);
-  const emotion = traitK(c.emotionality);
-  const temperature = Math.max(6, cplForElo(Number(c.elo) || 1000) * (1.15 - 0.35 * caution) * (0.85 + 0.3 * emotion));
-  const blunderChance = (1 - strength) ** 3 * 0.24 * (1.3 - 0.6 * caution); // 600 Elo → ~20%, 1500 → ~5%, 2000 → ~1%
-  const multipv = strength < 0.35 ? 8 : strength < 0.65 ? 6 : 4;
+  const policyElo = characterPolicyElo(c.elo);
+  const strength = clamp((policyElo - 500) / 2400, 0, 1); // 0 — новичок, 1 — гроссмейстер
+  const caution = traitK(c.caution ?? 50);
+  const emotion = traitK(c.emotionality ?? 50);
+  const temperatureMult = CALIBRATED_TEMPERATURE_MULT * (1 + 0.2 * (0.5 - caution) + 0.1 * (emotion - 0.5));
+  const temperature = Math.max(6, cplForElo(policyElo) * temperatureMult);
+  const blunderMult = CALIBRATED_BLUNDER_MULT * (1 + 0.3 * (0.5 - caution));
+  const blunderChance = (1 - strength) ** 3 * 0.24 * blunderMult;
+  // Плавно от 8 вариантов у новичка до 4 у гроссмейстера. Раньше было три
+  // ступени, и на границе (~1340) потеря за ход скачком падала с 65 до 53:
+  // уровни между ~1300 и ~1750 персонаж изобразить не мог.
+  const multipv = Math.round(8 - 4 * strength);
   // Насколько охотно забирает подставленное: даже новичок обычно видит
   // висящую фигуру (800 → ~65%, 1200 → ~75%, 2000+ → ~90%). Раньше 1200
   // проходил мимо бесплатной фигуры так же часто, как 800.
@@ -243,8 +289,7 @@ function humanMoveBonus(d, ctx) {
 // волнует) и по вкусу персонажа: агрессивные тянутся к взятиям и шахам,
 // любители жертв — к рискованным взятиям, осторожные — к рокировке.
 // Ход выбирается случайно пропорционально весу.
-function pickCharacterMove(fen, candidates) {
-  const c = state.character;
+function pickCharacterMove(fen, candidates, c = state.character) {
   const policy = characterMovePolicy(c);
   const topScore = choiceScore(candidates[0].score);
   // Подставили фигуру — лучший ход на 2+ пешки сильнее остальных. Чаще всего
@@ -307,6 +352,41 @@ function detectCharacterMoveFlavor(chosenScore, topScore, moveObj) {
   state.prevCharacterEval = topScore;
 }
 
+/* ---- Сколько персонаж «думает» над ходом ----
+   Живой соперник не ходит мгновенно: от 1 до 6 секунд. В дебюте ходит
+   быстрее (ходы знакомые), в миттельшпиле и эндшпиле — дольше, очевидный
+   ответ (забрать подставленную фигуру) — быстро. Когда на часах мало
+   времени, ускоряется, чтобы не просрочить. */
+const THINK_MIN_MS = 1000;
+const THINK_MAX_MS = 6000;
+function characterThinkMs(game, { obvious = false, book = false } = {}) {
+  const plies = game.history().length;
+  let pieces = 0; // фигуры кроме пешек и королей — по ним видно эндшпиль
+  for (const row of game.board()) for (const sq of row) if (sq && sq.type !== 'p' && sq.type !== 'k') pieces++;
+  let base;
+  if (book || plies < 12) base = 1000 + Math.random() * 1000;         // дебют: 1–2 с
+  else if (pieces <= 6) base = 3000 + Math.random() * 3000;          // эндшпиль: 3–6 с
+  else base = 2000 + Math.random() * 3000;                           // миттельшпиль: 2–5 с
+  if (obvious) base = Math.min(base, 1000 + Math.random() * 600);
+  let ms = clamp(base, THINK_MIN_MS, THINK_MAX_MS);
+  if (clockEnabled()) { // js/main.js
+    const left = state.aiColor === 'w' ? state.timeWhite : state.timeBlack;
+    // Меньше двух минут — думает пропорционально меньше; меньше 20 секунд —
+    // почти сразу (полсекунды), как человек в цейтноте.
+    if (left < 20) ms = 300 + Math.random() * 300;
+    else if (left < 120) ms = Math.max(500, ms * left / 120);
+  }
+  return ms;
+}
+
+// Ждёт, пока с начала раздумья пройдёт ms. false — пока ждали, партия
+// сменилась или закончилась, и ход делать уже не нужно.
+async function waitThinkTime(startedAt, ms, fen, gameStartedAt) {
+  const rest = ms - (Date.now() - startedAt);
+  if (rest > 0) await new Promise(r => setTimeout(r, rest));
+  return !state.isGameOver && gameStartedAt === state.gameStartedAt && state.game.fen() === fen;
+}
+
 async function requestCharacterMove() {
   if (!state.game || state.isGameOver || state.game.turn() !== state.aiColor || !state.character) return;
   state.isThinking = true;
@@ -314,13 +394,19 @@ async function requestCharacterMove() {
   updateStatus();
 
   const fen = state.game.fen();
+  const thinkStartedAt = Date.now();
+  const gameStartedAt = state.gameStartedAt;
 
   // Пока партия идёт по его защите — ходит по книге, а не по движку: так
   // дебют совпадает с тем, что написано в карточке персонажа.
   const bookSan = pickBookMove(state.character, state.game, state.aiColor);
   if (bookSan) {
-    await new Promise(r => setTimeout(r, 450 + Math.random() * 500)); // «подумал»
-    const bookMove = !state.isGameOver && state.game.fen() === fen ? state.game.move(bookSan, { sloppy: true }) : null;
+    const ready = await waitThinkTime(thinkStartedAt, characterThinkMs(state.game, { book: true }), fen, gameStartedAt);
+    if (!ready) {
+      if (gameStartedAt === state.gameStartedAt) { state.isThinking = false; setThinkingUI(false); }
+      return;
+    }
+    const bookMove = state.game.move(bookSan, { sloppy: true });
     if (bookMove) {
       state.lastMoveFlavor = null;
       state.fenHistory.push(state.game.fen());
@@ -332,7 +418,10 @@ async function requestCharacterMove() {
     }
   }
 
-  const movetime = movetimeForSkill(state.skillLevel);
+  let movetime = movetimeForSkill(state.skillLevel);
+  // В цейтноте и сам поиск короче — иначе персонаж просрочит время
+  const clockLeft = state.aiColor === 'w' ? state.timeWhite : state.timeBlack;
+  if (clockEnabled() && clockLeft < 20) movetime = Math.min(movetime, 250);
   showEngineLoadingStatus();
   await waitForEngine(3000);
   const { multipv } = characterMovePolicy(state.character);
@@ -344,6 +433,12 @@ async function requestCharacterMove() {
 
   if (candidates.length) {
     const target = pickCharacterMove(fen, candidates);
+    // Забрать подставленное — очевидно, долго над этим не думают
+    const obvious = candidates.length > 1 && choiceScore(candidates[0].score) - choiceScore(candidates[1].score) >= 200 && target.move === candidates[0].move;
+    if (!await waitThinkTime(thinkStartedAt, characterThinkMs(state.game, { obvious }), fen, gameStartedAt)) {
+      if (gameStartedAt === state.gameStartedAt) { state.isThinking = false; setThinkingUI(false); }
+      return;
+    }
     moveObj = applyUciMove(target.move);
     chosenScore = target.score;
   }

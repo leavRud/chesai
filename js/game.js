@@ -366,11 +366,6 @@ function renderCaptured() {
   });
 }
 
-// Примерный рейтинг уровня Stockfish — та же шкала, что в eloToSkillLevel().
-function skillLevelToElo(level) {
-  return Math.round((500 + ((clamp(level, 1, 20) - 1) / 19) * 2400) / 50) * 50;
-}
-
 // Сверху — соперник, снизу — тот, за кого играют (в режиме «вдвоём» — белые).
 // Таймер и взятые фигуры каждой стороны переезжают в строку этой стороны.
 function renderPlayerBars() {
@@ -391,8 +386,8 @@ function renderPlayerBars() {
     if (state.mode === 'characters' && state.character) {
       return { king, name: state.character.name, meta: t('≈{elo} Эло', { elo: state.character.elo }) };
     }
-    const label = LEVEL_LABEL[state.skillLevel] || t('уровень {level}', { level: state.skillLevel });
-    return { king, name: 'Stockfish', meta: `${label[0].toUpperCase() + label.slice(1)} · ≈${skillLevelToElo(state.skillLevel)}` };
+    const label = aiLevelLabel();
+    return { king, name: 'Stockfish', meta: label[0].toUpperCase() + label.slice(1) };
   };
   [[$id('playerBarTop'), topSide], [$id('playerBarBottom'), bottomSide]].forEach(([bar, side]) => {
     const info = describe(side);

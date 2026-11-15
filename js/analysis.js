@@ -497,7 +497,7 @@ function avg(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.len
 function knownSideElo(color) {
   if (state.mode === 'friend' || color === state.playerColor) return null;
   if (state.mode === 'characters' && state.character) return state.character.elo;
-  if (state.mode === 'ai') return skillLevelToElo(state.skillLevel);
+  if (state.mode === 'ai') return aiOpponentElo();
   return null;
 }
 

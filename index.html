@@ -428,21 +428,9 @@
     </div>
 
     <div class="diff-section">
-      <span class="diff-section-label">Сложность</span>
-      <div class="diff-choice-row">
-        <button type="button" class="diff-choice-btn diff-easy" data-level="8" aria-pressed="false">
-          <span class="diff-choice-name"><span class="diff-dot"></span>Лёгкий</span>
-          <span class="diff-elo">≈1400</span>
-        </button>
-        <button type="button" class="diff-choice-btn diff-medium" data-level="14" aria-pressed="false">
-          <span class="diff-choice-name"><span class="diff-dot"></span>Средний</span>
-          <span class="diff-elo">≈2150</span>
-        </button>
-        <button type="button" class="diff-choice-btn diff-hard" data-level="20" aria-pressed="false">
-          <span class="diff-choice-name"><span class="diff-dot"></span>Сложный</span>
-          <span class="diff-elo">≈2900</span>
-        </button>
-      </div>
+      <span class="diff-section-label">Сила Stockfish (рейтинг)</span>
+      <!-- 12 уровней рисует js/home-screen.js (renderAiLevels) -->
+      <div id="aiLevelGrid" class="diff-choice-row diff-level-grid"></div>
     </div>
 
     <div class="modal-actions">
