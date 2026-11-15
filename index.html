@@ -366,7 +366,17 @@
             <span></span><span></span><span></span>
           </div>
         </div>
+        <!-- Предложение ничьей (js/draws.js) -->
+        <div id="drawOfferBanner" class="draw-offer-banner hidden" role="status" aria-live="polite">
+          <span class="draw-offer-icon" aria-hidden="true">½</span>
+          <span id="drawOfferText" class="draw-offer-text"></span>
+          <span class="draw-offer-actions">
+            <button id="drawAcceptBtn" class="btn btn-accent btn-sm" type="button">Принять</button>
+            <button id="drawDeclineBtn" class="btn btn-ghost btn-sm" type="button">Отклонить</button>
+          </span>
+        </div>
         <div class="controls-row">
+          <button id="drawBtn" class="btn btn-ghost btn-sm draw-btn" type="button" aria-disabled="true">½ Ничья</button>
           <button id="resignBtn" class="btn btn-danger btn-sm" type="button">Сдаться</button>
           <button id="newGameBtn" class="btn btn-ghost btn-sm" type="button">Новая игра</button>
         </div>
@@ -1570,6 +1580,7 @@
 <script src="js/share.js"></script>
 <script src="js/push.js"></script>
 <script src="js/online.js"></script>
+<script src="js/draws.js"></script>
 <script src="js/effects.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/profile-frames.js"></script>

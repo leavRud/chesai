@@ -106,11 +106,31 @@ function startTimer() {
   }, 1000);
 }
 
+// Может ли сторона color в принципе поставить мат: только король или король
+// с одной лёгкой фигурой без пешек — не может (правила FIDE, 6.9).
+function hasMatingMaterial(color) {
+  const pieces = [];
+  for (const row of state.game.board()) for (const sq of row) if (sq && sq.color === color && sq.type !== 'k') pieces.push(sq.type);
+  if (!pieces.length) return false;
+  return !(pieces.length === 1 && (pieces[0] === 'n' || pieces[0] === 'b'));
+}
+
 function handleTimeOut(color) {
   if (state.isGameOver) return;
   const loser = color === 'w' ? t('Белые') : t('Чёрные');
   let text;
   let outcome = 'draw';
+  const other = color === 'w' ? 'b' : 'w';
+  if (!hasMatingMaterial(other)) {
+    // Флаг упал, но у соперника не хватает фигур для мата — ничья
+    text = t('{loser}: время вышло, но у соперника не хватает фигур для мата — ничья.', { loser });
+    state.isGameOver = true;
+    stopTimer();
+    updateResignButtonLabel();
+    reportAchievementGameEnd('draw');
+    showResultModal(text, 'draw', 'time', null);
+    return;
+  }
   if (state.mode === 'friend') {
     const winner = color === 'w' ? t('Чёрные') : t('Белые');
     text = t('{loser} проиграли по времени. Победили {winner}.', { loser, winner });

@@ -274,7 +274,7 @@ let gamesViewShown = 0;
 let gamesViewSignedIn = false;
 
 const GAME_REASON_LABEL = {
-  mate: t('мат'), resign: t('сдача'), time: t('время'), stalemate: t('пат'), draw: t('ничья'), over: t('конец партии'), abandon: t('брошена'),
+  mate: t('мат'), resign: t('сдача'), time: t('время'), stalemate: t('пат'), draw: t('ничья'), over: t('конец партии'), abandon: t('брошена'), agreement: t('ничья по соглашению'),
 };
 
 function gameResultBadge(rec) {

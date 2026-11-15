@@ -125,6 +125,7 @@ async function syncOnlineFromServer() {
     }
     if (row.status === 'finished' && !state.isGameOver) finishFromServer(row);
     if (row.status === 'finished') stopOnlinePolling();
+    else applyOnlineDrawOffer(row.draw_offer_by || null); // предложение ничьей (draws.js)
   } catch (e) {
     // Нет сети — попробуем на следующем такте
   } finally {
@@ -203,8 +204,13 @@ function onlineReportFinish(result, reason) {
   forgetOnlineSeat(id);
 }
 
-// Соперник сдался (или конец партии, который мы пропустили).
+// Соперник сдался, согласились на ничью (или конец партии, который мы пропустили).
 function finishFromServer(row) {
+  if (row.reason === 'agreement') {
+    forgetOnlineSeat(online.id);
+    finishDrawByAgreement(); // draws.js
+    return;
+  }
   if (row.reason !== 'resign') {
     if (!checkGameOver()) stopOnlinePolling();
     return;
@@ -221,6 +227,24 @@ function finishFromServer(row) {
   showResultModal(iWon ? t('{name} сдаётся. Вы победили!', { name }) : t('Вы сдались.'),
     iWon ? 'player_win' : 'character_win', 'resign', winner);
 }
+
+/* ---------- Ничья по соглашению ----------
+   Предложение хранится в партии на сервере: сообщение Realtime только
+   будит соперника, а что на самом деле предложено — он берёт из базы. */
+async function onlineDrawRpc(fn, args) {
+  if (!online.id) return null;
+  const { data, error } = await sb.rpc(fn, { p_id: online.id, p_token: online.token, ...args });
+  if (error) {
+    if (rpcErrorCode(error) === 'TOO_EARLY') showToast(t('Ничью можно предложить с 10-го хода'));
+    console.warn('Ничья в партии по ссылке:', error.message);
+    return null;
+  }
+  sendOnlineMessage({ type: 'draw' });
+  if (data === 'agreed') syncOnlineFromServer();
+  return data;
+}
+function onlineOfferDraw() { return onlineDrawRpc('online_offer_draw', {}); }
+function onlineAnswerDraw(accept) { return onlineDrawRpc('online_answer_draw', { p_accept: !!accept }); }
 
 /* ---------- Начало партии ---------- */
 function startOnlineGame(row) {
@@ -239,6 +263,7 @@ function startOnlineGame(row) {
     finishFromServer(row);
     return;
   }
+  applyOnlineDrawOffer(row.draw_offer_by || null);
   if (!checkGameOver()) startOnlinePolling();
 }
 

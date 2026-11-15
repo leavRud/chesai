@@ -7,7 +7,13 @@
 $id('newGameBtn').addEventListener('click', () => {
   playSound('ui');
   if (state.game && !state.isGameOver && state.game.history().length > 0) {
-    if (!confirm(t('Начать новую игру? Текущая партия будет потеряна.'))) return;
+    // Рейтинговая партия, брошенная после 2 своих ходов, засчитывается поражением (history.js)
+    const own = state.game.history({ verbose: true }).filter(m => m.color === state.playerColor).length;
+    const rated = (state.mode === 'ai' || state.mode === 'characters') && getAccount()?.uid && own >= ABANDON_MIN_OWN_MOVES;
+    const question = rated
+      ? t('Начать новую игру? Незаконченная партия будет засчитана поражением. Если позиция равная, можно предложить ничью.')
+      : t('Начать новую игру? Текущая партия будет потеряна.');
+    if (!confirm(question)) return;
   }
   resetToModeSelection();
 });
@@ -68,6 +74,7 @@ function initGame() {
   hideModal('resultModal');
   hideConnectionBanner();
   state.gameStartedAt = Date.now();
+  resetDrawState(); // draws.js
   renderPlayerBars();
   renderMoveList();
   updateStatus();
@@ -154,6 +161,7 @@ let tapSelectedSquare = null;
 
 function canUserMoveNow() {
   if (!state.game || state.isGameOver || state.isThinking || pendingPromotion) return false;
+  if (drawState.deciding) return false; // соперник обдумывает предложение ничьей (draws.js)
   if ((state.mode === 'ai' || state.mode === 'characters' || state.mode === 'online') && state.game.turn() !== state.playerColor) return false;
   return true;
 }
@@ -331,6 +339,7 @@ function onMoveMade(move, isUserMove = false) {
     startTimer();
   }
   const isOver = checkGameOver();
+  drawAfterMove(move, isUserMove, isOver); // ничьи: ход — отказ, соперник может предложить (draws.js)
   // Останавливаем анализ предыдущей позиции (сохраняя результат в кэш) и,
   // если партия продолжается, тут же запускаем фоновый анализ новой позиции.
   // Промис не ждём — это не должно блокировать отрисовку хода.
@@ -595,11 +604,12 @@ const RESULT_REASON_LABEL = {
   time: t('Время вышло'),
   stalemate: t('Пат'),
   draw: t('Ничья'),
+  agreement: t('Ничья по соглашению'),
   over: t('Партия окончена'),
 };
 
 function resultTitleFor(reason, outcome) {
-  if (reason === 'stalemate' || reason === 'draw' || (reason === 'time' && outcome === 'draw')) return t('Ничья');
+  if (reason === 'stalemate' || reason === 'draw' || reason === 'agreement' || outcome === 'draw' && reason === 'time') return t('Ничья');
   if (state.mode === 'friend') return t('Партия окончена');
   if (outcome === 'player_win') return t('Победа!');
   if (outcome === 'character_win') return t('Поражение');
@@ -629,6 +639,7 @@ function renderResultStats(reason) {
 // winner — цвет победителя ('w' | 'b') или null при ничьей: нужен для истории и PGN.
 function showResultModal(text, outcome = 'draw', reason = 'over', winner = null, { revealMs = 0 } = {}) {
   clearPendingRatedGame(); // доиграна — брошенной не считается
+  clearDrawOffer(); // висящее предложение ничьей больше не в силе
   const ratingEl = $id('resultRating');
   ratingEl.textContent = '';
   ratingEl.classList.add('hidden');
