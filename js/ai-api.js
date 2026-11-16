@@ -24,7 +24,7 @@ async function provodChat(messages, { temperature = 0.6, kind = 'question', task
     throw err;
   }
   if (data?.quota) renderChatQuota(data.quota);
-  return data?.choices?.[0]?.message?.content ?? '';
+  return fixStrayLineBreaks(data?.choices?.[0]?.message?.content ?? ''); // js/utils.js
 }
 
 /* ---- Дневной лимит вопросов (этап 0: бесплатно, но только после входа) ---- */
