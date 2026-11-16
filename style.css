@@ -4181,3 +4181,6 @@ html.is-vk .chat-quota-buy { display: none !important; }
   .char-card-actions .color-choice-row { flex-wrap: nowrap; gap: 6px; }
   .char-card-actions .color-choice-btn { padding: 8px 4px; font-size: 13px; gap: 6px; }
 }
+
+/* Подпись про компенсацию перетаскивания под временем партии */
+#timeControlRow .settings-row-desc { margin-top: 8px; }

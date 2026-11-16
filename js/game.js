@@ -171,6 +171,7 @@ function onDragStart(source, piece) {
   const turn = state.game.turn();
   const isPieceWhite = piece.search(/^w/) !== -1;
   if ((turn === 'w' && !isPieceWhite) || (turn === 'b' && isPieceWhite)) return false;
+  notePieceLifted(); // main.js: время перетаскивания вернём на часы
   highlightLegalMoves(source);
 }
 
@@ -335,7 +336,8 @@ function onMoveMade(move, isUserMove = false) {
   if (isUserMove) markPendingRatedGame(); // брошенная партия = поражение (history.js)
   // После хода перезапускаем таймер
   if (!state.isGameOver) {
-    stopTimer();
+    stopTimer(); // списывает время хода тому, кто ходил
+    applyMoveTimeBonus(move, isUserMove); // компенсация перетаскивания фигуры (main.js)
     startTimer();
   }
   const isOver = checkGameOver();
@@ -658,7 +660,7 @@ function showResultModal(text, outcome = 'draw', reason = 'over', winner = null,
   const isCharacterGame = state.mode === 'characters' && state.character;
   if (isCharacterGame) {
     renderCharacterResultLoading();
-    generateCharacterEndSummary(text, outcome);
+    generateCharacterEndSummary(text, outcome, reason);
   }
   const gameStartedAt = state.gameStartedAt;
   const open = () => {

@@ -207,12 +207,12 @@ async function askCharacterAboutDraw(kind, cp) {
   const drawishness = Number.isFinite(c.drawishness) ? c.drawishness : 30;
   const situation = `Оценка Stockfish для тебя: ${describeEvalForCharacter(cp)}. Идёт ${Math.floor(drawPlies() / 2) + 1}-й ход.${characterClockLine()} Твоя склонность к ничьим: ${drawishness} из 100.`;
   const task = kind === 'respond'
-    ? `[Событие: собеседник официально предлагает тебе ничью.]
+    ? `[Событие: собеседник нажал кнопку «Ничья» — это официальное предложение ничьей прямо сейчас. Твоё решение сразу закончит партию или продолжит её; не отправляй его ничего нажимать.]
 [Реши в своём характере, соглашаться ли. Позиция важна: при заметном перевесе обычно играют дальше, в равной или худшей позиции ничья разумна; характер может перевесить. Ответь строго JSON без разметки: {"accept": true или false, "message": "что ты говоришь собеседнику в ответ, 1–2 предложения"}]`
-    : `[Событие: сейчас ты можешь официально предложить собеседнику ничью. Он уже отказывал тебе в ничьей ${drawState.declinedByPlayer} раз.]
+    : `[Событие: сейчас ты можешь официально предложить собеседнику ничью — программа покажет ему твоё предложение с кнопками «Принять» и «Отклонить». Он уже отказывал тебе в ничьей ${drawState.declinedByPlayer} раз.]
 [Реши в своём характере, хочешь ли предложить ничью прямо сейчас. Предлагай, только если это разумно по позиции или очень в твоём характере; без причины не предлагай. Ответь строго JSON без разметки: {"offer": true или false, "message": "что ты скажешь собеседнику, предлагая ничью, 1–2 предложения (пусто, если не предлагаешь)"}]`;
   const messages = [
-    { role: 'system', content: buildCharacterPersonaPrompt() },
+    { role: 'system', content: buildCharacterPersonaPrompt({ forDrawDecision: true }) },
     ...trimHistory(state.chatApiHistory, 8),
     { role: 'user', content: `[Фон: ${describeGameForCharacter()}]\n[${situation}]\n${task}` },
   ];

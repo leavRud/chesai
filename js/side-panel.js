@@ -149,7 +149,23 @@ function navigateTo(view) {
 // Кнопка "Назад" (и Escape) — ЕДИНСТВЕННЫЙ способ вернуться назад.
 // Никаких if(profileOpen)/else if(settingsOpen) — просто pop() стека.
 // Если мы уже в корне (menu) — закрываем панель целиком.
+// Редактор профиля: изменили имя, аватар или рамку и уходим без «Сохранить» —
+// спрашиваем, иначе изменения молча пропадали. После «Сохранить» профиль уже
+// совпадает с черновиком, и вопроса нет.
+function profileEditDirty() {
+  if (typeof getCurrentView !== 'function' || getCurrentView() !== 'profile-edit') return false;
+  const acc = getAccount() || {};
+  const name = ($id('profileEditNameInput').value || '').trim().slice(0, 24) || t('Игрок');
+  return name !== (acc.name || t('Игрок'))
+    || (profileEditDraft.avatar || '♟') !== (acc.avatar || '♟')
+    || (profileEditDraft.frame || 'none') !== (acc.frame && isFrameUnlocked(acc.frame) ? acc.frame : 'none');
+}
+function confirmLeaveProfileEdit() {
+  return !profileEditDirty() || confirm(t('Изменения профиля не сохранены. Выйти без сохранения?'));
+}
+
 function navigateBack() {
+  if (!confirmLeaveProfileEdit()) return;
   if (navigationState.stack.length > 1) {
     navigationState.stack.pop();
     renderSideView();
@@ -171,6 +187,7 @@ function openSidePanel() {
   playSound('ui');
 }
 function closeSidePanel() {
+  if (!confirmLeaveProfileEdit()) return;
   const overlay = $id('menuOverlay');
   if (overlay) overlay.classList.remove('open');
   // Стек намеренно не сбрасываем здесь — иначе смена view "мигала" бы прямо

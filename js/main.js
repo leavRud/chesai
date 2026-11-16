@@ -36,16 +36,29 @@ function clockEnabled() {
 }
 
 function formatTime(seconds) {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
+  const total = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+// Часы партии: меньше 20 секунд — с десятыми («00:12.4»), как на chess.com.
+// Целые секунды округляем вверх: на старте 10-минутной партии — «10:00».
+const CLOCK_TENTHS_BELOW = 20;
+function formatClock(seconds) {
+  const sec = Math.max(0, seconds);
+  if (sec < CLOCK_TENTHS_BELOW) {
+    const tenths = Math.floor(sec * 10) / 10;
+    return `00:${tenths.toFixed(1).padStart(4, '0')}`;
+  }
+  return formatTime(Math.ceil(sec));
 }
 
 function updateTimerDisplay() {
   const w = $id('timerWhite');
   const b = $id('timerBlack');
-  if (w) w.textContent = clockEnabled() ? formatTime(state.timeWhite || 0) : '—';
-  if (b) b.textContent = clockEnabled() ? formatTime(state.timeBlack || 0) : '—';
+  if (w) w.textContent = clockEnabled() ? formatClock(state.timeWhite || 0) : '—';
+  if (b) b.textContent = clockEnabled() ? formatClock(state.timeBlack || 0) : '—';
   // Активный игрок: подсвечиваем и таймер, и всю строку игрока
   const turn = state.game && !state.isGameOver ? state.game.turn() : null;
   document.querySelectorAll('.player-bar').forEach(bar => {
@@ -63,12 +76,29 @@ function updateTimerDisplay() {
   });
 }
 
+/* Часы считают время по-настоящему, с точностью до долей секунды. Раньше
+   таймер раз в секунду отнимал целую секунду и перезапускался на каждом ходе:
+   ход быстрее секунды не стоил ничего. Теперь каждые 100 мс списывается
+   прошедшее время, а остановка часов (ход, ничья, конец) списывает остаток. */
+const CLOCK_TICK_MS = 100;
+function chargeClock() {
+  if (!state.timerRunning || !state.timerSide || state.timerLastTick == null) return;
+  const now = performance.now();
+  const spent = (now - state.timerLastTick) / 1000;
+  state.timerLastTick = now;
+  if (state.timerSide === 'w') state.timeWhite = Math.max(0, state.timeWhite - spent);
+  else state.timeBlack = Math.max(0, state.timeBlack - spent);
+}
+
 function stopTimer() {
+  chargeClock();
   if (state.timerInterval) {
     clearInterval(state.timerInterval);
     state.timerInterval = null;
   }
   state.timerRunning = false;
+  state.timerSide = null;
+  state.timerLastTick = null;
 }
 
 function startTimer() {
@@ -85,25 +115,40 @@ function startTimer() {
     return;
   }
   state.timerRunning = true;
+  state.timerSide = turn;
+  state.timerLastTick = performance.now();
   updateTimerDisplay();
   state.timerInterval = setInterval(() => {
     if (!state.game || state.isGameOver) {
       stopTimer();
       return;
     }
-    const turnNow = state.game.turn();
-    if (turnNow === 'w') {
-      state.timeWhite = Math.max(0, state.timeWhite - 1);
-    } else {
-      state.timeBlack = Math.max(0, state.timeBlack - 1);
-    }
+    chargeClock();
     updateTimerDisplay();
-    const left = turnNow === 'w' ? state.timeWhite : state.timeBlack;
+    const side = state.timerSide;
+    const left = side === 'w' ? state.timeWhite : state.timeBlack;
     if (left <= 0) {
       stopTimer();
-      handleTimeOut(turnNow);
+      handleTimeOut(side);
     }
-  }, 1000);
+  }, CLOCK_TICK_MS);
+}
+
+/* Компенсация перетаскивания: пока игрок несёт фигуру по доске, идут его
+   часы — после хода возвращаем это время, но не больше полсекунды за ход. */
+const DRAG_COMPENSATION_MAX_MS = 500;
+let pieceLiftedAt = null;
+function notePieceLifted() { pieceLiftedAt = performance.now(); }
+function applyMoveTimeBonus(move, isUserMove) {
+  if (!clockEnabled() || !move) return;
+  let bonus = 0;
+  if (isUserMove && pieceLiftedAt != null) {
+    bonus = Math.min(DRAG_COMPENSATION_MAX_MS, Math.max(0, performance.now() - pieceLiftedAt)) / 1000;
+  }
+  pieceLiftedAt = null;
+  if (!bonus) return;
+  if (move.color === 'w') state.timeWhite += bonus;
+  else state.timeBlack += bonus;
 }
 
 // Может ли сторона color в принципе поставить мат: только король или король

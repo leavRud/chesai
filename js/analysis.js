@@ -692,7 +692,7 @@ async function requestAnalysis() {
 
     const prelimStats = computeGameStats(fens, moves, prelimEvaluations);
     stopProgress(true);
-    renderAnalysis(prelimStats, moves.length, t('Уточняю анализ партии в фоне…'), { refining: true });
+    renderAnalysis(prelimStats, moves.length, '', { refining: true }); // что сейчас считается — в плашке уточнения
     hideConnectionBanner();
 
     // ФАЗА 2 (фоновая, ТЗ п.2): доуглубляем и пересчитываем, не блокируя окно.
@@ -709,22 +709,38 @@ async function requestAnalysis() {
 }
 
 // Фоновое углубление уже показанного предварительного результата (ТЗ п.2).
+// Сколько уточнение может идти, прежде чем перейти на быстрый счёт: партия
+// в 56 ходов — это 113 позиций, и на телефоне разбор тянулся минутами,
+// а плашка «Уточняю…» висела без движения.
+const REFINE_BUDGET_MS = 40000;
+const REFINE_CRITICAL_BUDGET_MS = 75000;
+
+// Прогресс уточнения в плашке под предварительным результатом
+function setRefineProgress(text) {
+  const el = document.querySelector('#analysisContent .analysis-refining-text');
+  if (el) el.textContent = text;
+}
+
 async function refineGameAnalysis(runId, fens, moves, weakPc, baseDepth, criticalDepth) {
+  const startedAt = Date.now();
   try {
-    while (analysisQueue.length) {
-      if (runId !== analysisRunId) return;
-      await processAnalysisQueueOnce();
-    }
-    if (runId !== analysisRunId) return;
+    // Очередь «доуглубить старые позиции» копилась для чата во время партии;
+    // всю партию мы и так сейчас посчитаем — не ждём её.
+    analysisQueue.length = 0;
 
     // Потеря хода — разность оценок «до» и «после». Если «до» досчитано в фоне
     // до глубины 22, а «после» — до 14, разность — шум глубины, а не ошибка.
-    // Поэтому позицию «после» считаем не мельче, чем «до» минус один полуход.
+    // Поэтому позицию «после» считаем чуть глубже, но не больше чем на 2 полухода
+    // сверх базовой: раньше это правило гнало почти каждую позицию до глубины 20.
+    // Если счёт затянулся — оставшиеся позиции считаем быстро (на 4 полухода мельче).
     const evaluations = [];
     for (let i = 0; i < fens.length; i++) {
       if (runId !== analysisRunId) return;
+      const late = Date.now() - startedAt > REFINE_BUDGET_MS;
+      const base = late ? Math.max(8, baseDepth - 4) : baseDepth;
       const prevDepth = i > 0 && evaluations[i - 1] ? evaluations[i - 1].depth || 0 : 0;
-      const minDepth = clamp(prevDepth - 1, baseDepth, criticalDepth);
+      const minDepth = late ? base : clamp(prevDepth - 1, base, base + 2);
+      setRefineProgress(t('Stockfish уточняет оценки: позиция {i} из {n}…', { i: i + 1, n: fens.length }));
       const result = await analyzePosition(fens[i], { minDepth });
       evaluations.push(result);
     }
@@ -733,9 +749,11 @@ async function refineGameAnalysis(runId, fens, moves, weakPc, baseDepth, critica
     let stats = computeGameStats(fens, moves, evaluations);
 
     // Критические ходы (ТЗ п.5/11): позицию ДО хода — глубже и с MultiPV.
-    const criticalItems = stats.moveAnalysis.filter(m => m.critical).sort((a, b) => b.winDrop - a.winDrop).slice(0, weakPc ? 3 : 8);
-    for (const item of criticalItems) {
+    const criticalItems = stats.moveAnalysis.filter(m => m.critical).sort((a, b) => b.winDrop - a.winDrop).slice(0, weakPc ? 3 : 6);
+    for (const [k, item] of criticalItems.entries()) {
       if (runId !== analysisRunId) return;
+      if (Date.now() - startedAt > REFINE_CRITICAL_BUDGET_MS) break; // остальное — по базовой глубине
+      setRefineProgress(t('Stockfish перепроверяет ошибки: {i} из {n}…', { i: k + 1, n: criticalItems.length }));
       try {
         const deep = await analyzePosition(item.fenBefore, { minDepth: criticalDepth });
         if (deep) { item.depth = deep.depth; item.bestMove = deep.bestMove; item.pv = deep.pv; }
@@ -756,6 +774,7 @@ async function refineGameAnalysis(runId, fens, moves, weakPc, baseDepth, critica
       if (refined) { m.depth = refined.depth; m.bestMove = refined.bestMove; m.pv = refined.pv; m.alternatives = refined.alternatives; }
     });
 
+    setRefineProgress(chatSignedIn ? t('Нейросеть пишет комментарий к партии…') : t('Почти готово…'));
     const pgn = state.game.pgn();
     let comment = chatSignedIn ? t('Комментарий недоступен.') : t('Комментарий нейросети к партии появится после входа в аккаунт.');
     if (chatSignedIn) try {
@@ -853,7 +872,7 @@ function renderAnalysis(stats, totalPly, comment, { refining = false } = {}) {
 
   html += `<p class="analysis-comment">${escapeHtml(comment)}</p>`;
   if (refining) {
-    html += `<p class="analysis-disclaimer analysis-refining">${achievementIconSvg('hourglass')}${t('Быстрый предварительный результат — Stockfish продолжает углублять анализ в фоне, значения скоро уточнятся.')}</p>`;
+    html += `<p class="analysis-disclaimer analysis-refining">${achievementIconSvg('hourglass')}<span>${t('Быстрый предварительный результат — значения скоро уточнятся.')} <b class="analysis-refining-text">${t('Stockfish уточняет оценки…')}</b></span></p>`;
   }
   html += `<p class="analysis-disclaimer">${t('Уровень — по средней потере за ход: ходы в уже решённой позиции весят меньше, дебютная теория и единственные ходы не считаются. Это грубая оценка этой партии; рейтинг аккаунта меняется по результату и силе соперника.')}</p>`;
   content.innerHTML = html;
