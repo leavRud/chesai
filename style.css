@@ -2565,11 +2565,11 @@ html.dark .achv-modal-overlay .achv-modal {
 .achv-card-icon .achv-icon { width: 32px; height: 32px; display: block; }
 .achv-toast-icon { color: var(--achv-tier, var(--gold)); }
 .achv-toast-icon .achv-icon { width: 24px; height: 24px; display: block; }
-.achv-tier-2   { --achv-tier: #C08A56; }
-.achv-tier-5   { --achv-tier: #B4BEC8; }
-.achv-tier-7   { --achv-tier: #E2B33C; }
-.achv-tier-15  { --achv-tier: #5CC8DC; }
-.achv-tier-50  { --achv-tier: #C57BE8; }
+.achv-tier-1   { --achv-tier: #C08A56; }
+.achv-tier-2   { --achv-tier: #B4BEC8; }
+.achv-tier-5   { --achv-tier: #E2B33C; }
+.achv-tier-10  { --achv-tier: #5CC8DC; }
+.achv-tier-25  { --achv-tier: #C57BE8; }
 .achv-card-name { font-weight: 700; font-size: 14.5px; color: #F4EFE4; font-family: var(--font-display); }
 .achv-card-desc { font-size: 12px; color: rgba(244, 239, 228, 0.55); line-height: 1.4; min-height: 32px; }
 .achv-card-date { font-size: 11px; color: var(--gold); margin-top: 4px; font-weight: 600; }
@@ -3362,7 +3362,7 @@ html.dark .achv-modal-overlay .achv-modal {
 /* Самые ценные достижения (15 и 50) видны в своём цвете и до получения:
    обводка, лёгкий отсвет фона и светящаяся иконка цвета уровня.
    Секретные не трогаем — у них класс achv-tier-hidden. */
-.achv-grid-container .achv-card.is-locked:is(.achv-tier-15, .achv-tier-50) {
+.achv-grid-container .achv-card.is-locked:is(.achv-tier-10, .achv-tier-25) {
   opacity: 0.85;
   filter: none;
   border-color: color-mix(in srgb, var(--achv-tier) 45%, transparent);
@@ -3374,10 +3374,10 @@ html.dark .achv-modal-overlay .achv-modal {
 /* Наведение на топовую ачивку: обводка загорается полным цветом уровня,
    отсвет становится ярче, а по карточке проходит блик. Двигать карточку
    нельзя — край прокрутки срезает обводку (см. выше), поэтому только свет. */
-.achv-grid-container .achv-card:is(.achv-tier-15, .achv-tier-50) {
+.achv-grid-container .achv-card:is(.achv-tier-10, .achv-tier-25) {
   transition: opacity 0.2s ease, border-color 0.25s ease, box-shadow 0.3s ease, background 0.3s ease;
 }
-.achv-grid-container .achv-card:is(.achv-tier-15, .achv-tier-50)::after {
+.achv-grid-container .achv-card:is(.achv-tier-10, .achv-tier-25)::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -3391,7 +3391,7 @@ html.dark .achv-modal-overlay .achv-modal {
   background-position: 130% 0;
   opacity: 0;
 }
-.achv-grid-container .achv-card:is(.achv-tier-15, .achv-tier-50):hover {
+.achv-grid-container .achv-card:is(.achv-tier-10, .achv-tier-25):hover {
   opacity: 1;
   border-color: var(--achv-tier);
   background: linear-gradient(160deg,
@@ -3400,10 +3400,10 @@ html.dark .achv-modal-overlay .achv-modal {
   box-shadow: 0 0 28px -8px color-mix(in srgb, var(--achv-tier) 70%, transparent),
               inset 0 0 18px -10px var(--achv-tier);
 }
-.achv-grid-container .achv-card:is(.achv-tier-15, .achv-tier-50):hover::after {
+.achv-grid-container .achv-card:is(.achv-tier-10, .achv-tier-25):hover::after {
   animation: achvTopSheen 0.9s ease-out forwards;
 }
-.achv-grid-container .achv-card:is(.achv-tier-15, .achv-tier-50):hover .achv-card-icon {
+.achv-grid-container .achv-card:is(.achv-tier-10, .achv-tier-25):hover .achv-card-icon {
   filter: drop-shadow(0 0 9px color-mix(in srgb, var(--achv-tier) 85%, transparent));
 }
 @keyframes achvTopSheen {
@@ -3412,12 +3412,12 @@ html.dark .achv-modal-overlay .achv-modal {
   100% { opacity: 0; background-position: -30% 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .achv-grid-container .achv-card:is(.achv-tier-15, .achv-tier-50):hover::after { animation: none; }
+  .achv-grid-container .achv-card:is(.achv-tier-10, .achv-tier-25):hover::after { animation: none; }
 }
-.achv-card.is-locked:is(.achv-tier-15, .achv-tier-50) .achv-card-icon {
+.achv-card.is-locked:is(.achv-tier-10, .achv-tier-25) .achv-card-icon {
   filter: drop-shadow(0 0 6px color-mix(in srgb, var(--achv-tier) 60%, transparent));
 }
-.achv-card.is-locked:is(.achv-tier-15, .achv-tier-50) .achv-card-name {
+.achv-card.is-locked:is(.achv-tier-10, .achv-tier-25) .achv-card-name {
   color: color-mix(in srgb, var(--achv-tier) 55%, #F4EFE4);
 }
 
