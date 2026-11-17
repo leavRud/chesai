@@ -234,7 +234,7 @@ $id('charCardBackBtn').addEventListener('click', () => {
 });
 $id('charCardRegenBtn').addEventListener('click', () => {
   if (!charState.lastInput) return;
-  runCharacterGeneration(charState.lastInput);
+  runCharacterGeneration(charState.lastInput, { fresh: true });
 });
 /* ---- Цвет игрока против персонажа: белые, чёрные или случайно ----
    Выбор запоминается; «Случайно» бросает жребий при каждом старте. */
@@ -291,12 +291,12 @@ function setCharCardLoading(isLoading) {
   $id('charCardRegenBtn').disabled = isLoading;
 }
 
-async function runCharacterGeneration(input) {
+async function runCharacterGeneration(input, { fresh = false } = {}) {
   showModal('characterCardModal');
   $id('charCardError').classList.add('hidden');
   setCharCardLoading(true);
   try {
-    const profile = await generateCharacterProfile(input);
+    const profile = await generateCharacterProfile(input, { fresh });
     state.character = profile;
     renderCharacterCard(profile);
     setCharCardLoading(false);
@@ -403,7 +403,9 @@ function normalizeCharacterProfile(p, input) {
   };
 }
 
-async function generateCharacterProfile(input) {
+// Персонажа по имени chat-proxy может отдать из базы уже созданных (если его
+// создавали с тем же промптом); fresh — создать заново мимо базы.
+async function generateCharacterProfile(input, { fresh = false } = {}) {
   const userMsg = input.type === 'name'
     ? `Имя персонажа: ${input.value}`
     : `Описание персонажа от пользователя: ${input.value}`;
@@ -411,7 +413,7 @@ async function generateCharacterProfile(input) {
     { role: 'system', content: buildCharacterGenSystemPrompt() },
     { role: 'user', content: userMsg },
   ];
-  const raw = await provodChat(messages, { temperature: 0.95, kind: 'game', task: 'character_create' });
+  const raw = await provodChat(messages, { temperature: 0.95, kind: 'game', task: 'character_create', fresh });
   let profile;
   try {
     profile = JSON.parse(extractJson(raw));

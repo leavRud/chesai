@@ -12,9 +12,10 @@
 // task — по ней сервер выбирает модель: 'position' (вопрос о позиции),
 // 'move' (разбор хода и партии), 'character_create', 'character' (реплики
 // персонажа). Если модель задачи не ответила, сервер повторит на запасной.
-async function provodChat(messages, { temperature = 0.6, kind = 'question', task } = {}) {
+// fresh: true — не брать готовый ответ из базы персонажей (кнопка «Перегенерировать»)
+async function provodChat(messages, { temperature = 0.6, kind = 'question', task, fresh = false } = {}) {
   const { data, error } = await sb.functions.invoke('chat-proxy', {
-    body: { messages, temperature, kind, task },
+    body: { messages, temperature, kind, task, fresh },
   });
   if (error) {
     let code = null;
