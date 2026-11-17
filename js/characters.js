@@ -285,22 +285,46 @@ $id('charCardPlayBtn').addEventListener('click', () => {
 });
 
 function setCharCardLoading(isLoading) {
-  $id('characterCardLoading').classList.toggle('hidden', !isLoading);
+  const box = $id('characterCardLoading');
+  if (!isLoading && box._tourLoader) box._tourLoader.destroy();
+  box.classList.toggle('hidden', !isLoading);
   $id('characterCardBody').classList.toggle('hidden', isLoading);
   $id('charCardPlayBtn').disabled = isLoading;
   $id('charCardRegenBtn').disabled = isLoading;
 }
 
+// Сколько ждать персонажа (логи chat-proxy, 17.11.2026): новый через Opus
+// 5.5 — 12–29 с, обычно ~16 с; по имени из базы — 2–3 с вместе с сетью.
+// Заранее не знаем, есть ли имя в базе, поэтому первые 2,5 с прогресс
+// идёт как для базы (до ~60%), потом — спокойно, как для новой генерации.
+const CHAR_GEN_EXPECTED_MS = 17000;
+const CHAR_CACHE_EXPECTED_MS = 2500;
+let charGenToken = 0;
+
 async function runCharacterGeneration(input, { fresh = false } = {}) {
+  const token = ++charGenToken;
   showModal('characterCardModal');
   $id('charCardError').classList.add('hidden');
   setCharCardLoading(true);
+  const loader = createTourLoader($id('characterCardLoading'), { text: t('Нейросеть создаёт персонажа…') });
+  let slowTimer = 0;
+  if (input.type === 'name' && !fresh) {
+    loader.plan(68, CHAR_CACHE_EXPECTED_MS);
+    slowTimer = setTimeout(() => loader.plan(96, CHAR_GEN_EXPECTED_MS - CHAR_CACHE_EXPECTED_MS), CHAR_CACHE_EXPECTED_MS);
+  } else {
+    loader.plan(96, CHAR_GEN_EXPECTED_MS);
+  }
   try {
     const profile = await generateCharacterProfile(input, { fresh });
+    clearTimeout(slowTimer);
+    await loader.finish();
+    if (token !== charGenToken) return;
     state.character = profile;
     renderCharacterCard(profile);
     setCharCardLoading(false);
   } catch (error) {
+    clearTimeout(slowTimer);
+    if (token !== charGenToken) return;
     console.error('Ошибка генерации персонажа:', error);
     setCharCardLoading(false);
     $id('characterCardBody').classList.add('hidden');

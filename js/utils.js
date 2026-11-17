@@ -56,17 +56,26 @@ function showConnectionBanner(text) {
 function hideConnectionBanner() {
   $id('connectionBanner').classList.add('hidden');
 }
+// Тост — строчка из бланка записи партии: номер «хода» и сообщение.
+// Номер — счётчик сообщений за сессию, как ходы в бланке.
+let toastMoveNumber = 0;
 function showToast(message) {
   const toast = document.getElementById('toast');
   if (!toast) return;
-  toast.textContent = message;
-  toast.classList.remove('hidden');
-  toast.classList.add('show');
+  toastMoveNumber += 1;
+  toast.querySelector('.toast-no').textContent = `${toastMoveNumber}.`;
+  toast.querySelector('.toast-text').textContent = message;
   clearTimeout(toast._hideTimer);
+  clearTimeout(toast._removeTimer);
+  // Новый тост поверх ещё видимого — заново «кладём» карточку
+  toast.classList.remove('show');
+  toast.classList.remove('hidden');
+  void toast.offsetWidth;
+  toast.classList.add('show');
   toast._hideTimer = setTimeout(() => {
     toast.classList.remove('show');
-    setTimeout(() => toast.classList.add('hidden'), 300);
-  }, 3000);
+    toast._removeTimer = setTimeout(() => toast.classList.add('hidden'), 450);
+  }, 3200);
 }
 function onHomeVisibilityChange() {
   homePageVisible = !document.hidden;

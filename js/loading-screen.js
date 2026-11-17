@@ -13,8 +13,6 @@ let loadingScreenHidden = false;
 
 function markLoadingReady(flag) {
   loadingReadyFlags[flag] = true;
-  const flags = Object.values(loadingReadyFlags);
-  updateLoadingBackground(flags.filter(Boolean).length / flags.length);
   maybeHideLoadingScreen();
 }
 

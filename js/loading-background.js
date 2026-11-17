@@ -81,6 +81,8 @@ function drawHomeSnowGlyph(ctx, f, snow, size, alpha) {
 
 /* =========================================================================
    «СБОР РОЯ»: кони прыгают к логотипу и встают кольцом, оно и есть прогресс
+   Места занимают строго по часовой стрелке, начиная сверху: конь, который
+   уже рядом, ждёт, пока встанет предыдущий. Встал — сразу загорается.
    ========================================================================= */
 const LOADING_SWARM_SIZE = 12;      // столько же коней на главном экране
 const LOADING_SWARM_HOP_MS = 170;
@@ -113,14 +115,16 @@ function layoutLoadingRing() {
   });
 }
 
-function hopLoadingKnight(knight) {
+function hopLoadingKnight(knight, mayArrive) {
   const { rows, cols } = loadingSwarm.grid;
   const distance = (row, col) => Math.abs(row - knight.goalRow) + Math.abs(col - knight.goalCol);
   if (distance(knight.row, knight.col) <= LOADING_SWARM_ARRIVE_CELLS) {
+    if (!mayArrive) return false; // рядом с местом, но очередь ещё не дошла
     knight.row = knight.goalRow;
     knight.col = knight.goalCol;
     knight.arrived = true;
-    return;
+    knight.el.classList.add('is-lit');
+    return true;
   }
   let best = null;
   for (const [dc, dr] of LOADING_SWARM_MOVES) {
@@ -130,14 +134,17 @@ function hopLoadingKnight(knight) {
     if (!best || distance(row, col) < distance(best.row, best.col)) best = { row, col };
   }
   if (best) Object.assign(knight, best);
+  return true;
 }
 
 function stepLoadingSwarm() {
   const swarm = loadingSwarm;
   if (!swarm) return;
-  swarm.knights.filter(knight => !knight.arrived).forEach(knight => {
-    hopLoadingKnight(knight);
-    placeLoadingKnight(knight);
+  // Встать на место за один прыжок может только следующий по кругу конь
+  const next = swarm.knights.findIndex(knight => !knight.arrived);
+  swarm.knights.forEach((knight, i) => {
+    if (knight.arrived) return;
+    if (hopLoadingKnight(knight, i === next)) placeLoadingKnight(knight);
   });
   if (swarm.knights.every(knight => knight.arrived)) {
     clearInterval(swarm.timer);
@@ -178,7 +185,10 @@ function startLoadingSwarm(layer) {
   window.addEventListener('resize', resizeLoadingSwarm);
 
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    knights.forEach(knight => Object.assign(knight, { row: knight.goalRow, col: knight.goalCol, arrived: true }));
+    knights.forEach(knight => {
+      Object.assign(knight, { row: knight.goalRow, col: knight.goalCol, arrived: true });
+      knight.el.classList.add('is-lit');
+    });
     resolveLoadingBackground();
   } else {
     loadingSwarm.timer = setInterval(stepLoadingSwarm, LOADING_SWARM_HOP_MS);
@@ -254,13 +264,6 @@ function startLoadingSnow(layer) {
 /* =========================================================================
    СВЯЗЬ С ЭКРАНОМ ЗАГРУЗКИ
    ========================================================================= */
-
-// progress от 0 до 1: кольцо загорается по часовой стрелке
-function updateLoadingBackground(progress) {
-  if (!loadingSwarm) return;
-  const lit = Math.round(progress * LOADING_SWARM_SIZE);
-  loadingSwarm.knights.forEach((knight, i) => knight.el.classList.toggle('is-lit', i < lit));
-}
 
 // Вызывается в момент скрытия экрана: главный экран продолжает с того же места
 function finishLoadingBackground() {

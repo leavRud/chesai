@@ -793,7 +793,6 @@ html:not(.dark) img.piece-417db { filter: drop-shadow(0 1px 1.5px rgba(40, 25, 1
   color: var(--text-muted);
   font-size: 13.5px;
 }
-.char-card-loading .thinking { justify-content: center; }
 
 .char-card-head {
   display: flex;
@@ -1052,8 +1051,7 @@ html:not(.dark) img.piece-417db { filter: drop-shadow(0 1px 1.5px rgba(40, 25, 1
 .analysis-stat .muted { color: var(--text-muted); font-weight: 400; font-size: 12px; }
 .analysis-comment { font-size: 13.5px; line-height: 1.6; color: var(--text); }
 .analysis-disclaimer { font-size: 11.5px; color: var(--text-muted); font-style: italic; }
-.analysis-refining { display: flex; gap: 6px; }
-.analysis-refining .achv-icon { flex-shrink: 0; width: 14px; height: 14px; }
+.analysis-refining { display: flex; flex-direction: column; gap: 8px; }
 .analysis-raw {
   white-space: pre-wrap;
   font-size: 12px;
@@ -1902,25 +1900,62 @@ html.dark .settings-panel { background: rgba(10, 10, 10, 0.78); }
 /* =========================================================================
    Toast
    ========================================================================= */
+/* Строчка из бланка записи партии: номер, сообщение, конь. Падает на
+   экран, как брошенная на стол бумажка, и ложится чуть наискось. */
 .toast {
   position: fixed;
   bottom: 30px;
   left: 50%;
-  transform: translateX(-50%) translateY(20px);
-  background: var(--bg-alt);
+  display: flex;
+  align-items: stretch;
+  /* Без width: max-content блок с left: 50% сжимается до правой половины экрана */
+  width: max-content;
+  min-width: min(260px, calc(100vw - 32px));
+  max-width: min(420px, calc(100vw - 32px));
+  background-color: var(--bg-alt);
+  background-image: repeating-linear-gradient(transparent 0 21px, color-mix(in srgb, var(--gold) 18%, transparent) 21px 22px);
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  box-shadow: var(--sd-md);
   color: var(--text);
-  padding: 16px 28px;
-  border-radius: 60px;
-  box-shadow: var(--sd-lg);
-  font-weight: 500;
   z-index: 300;
   opacity: 0;
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transform: translate(-50%, 40px) rotate(-5deg);
+  transition: opacity 0.3s ease, transform 0.45s cubic-bezier(0.3, 1.3, 0.5, 1);
   pointer-events: none;
 }
 .toast.show {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  transform: translate(-50%, 0) rotate(-1deg);
+}
+.toast-no {
+  flex-shrink: 0;
+  min-width: 38px;
+  padding: 11px 10px;
+  border-right: 1px solid var(--gold);
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.toast-text {
+  flex: 1;
+  padding: 11px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.toast-mark {
+  flex-shrink: 0;
+  padding: 10px 12px 0 0;
+  color: var(--accent);
+  font-family: "Segoe UI Symbol", "DejaVu Sans", serif;
+  font-size: 17px;
+  line-height: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: opacity 0.2s ease; transform: translate(-50%, 0) rotate(-1deg); }
 }
 
 /* Плашка «Switch to English?» (i18n.js, offerEnglish) */
@@ -2258,7 +2293,6 @@ html.dark .settings-panel { background: rgba(10, 10, 10, 0.78); }
 }
 .move-detail-loading { padding: 6px 0; }
 .move-detail-loading.hidden { display: none; }
-.move-detail-loading .knight-loader-text { color: rgba(244, 239, 228, 0.6); }
 
 /* Колонки выбираются по ширине самого окна разбора, а не экрана: при
    экране 721–900 px доска забирала 400 px, а цифрам справа оставалось
@@ -2301,58 +2335,90 @@ html.dark .settings-panel { background: rgba(10, 10, 10, 0.78); }
   .move-detail-info .md-comment { padding: 12px 14px; font-size: 13.5px; }
 }
 
-/* ---- Загрузчик с конём: конь прыгает, кольцо крутится или заполняется ---- */
-.knight-loader { display: flex; align-items: center; gap: 14px; }
-.knight-loader-stage { position: relative; width: 64px; height: 64px; flex-shrink: 0; }
-.knight-loader-ring { position: absolute; inset: 0; width: 64px; height: 64px; transform: rotate(-90deg); }
-.knight-loader-track { fill: none; stroke: var(--gold-soft); stroke-width: 3; }
-.knight-loader-arc {
-  fill: none;
-  stroke: var(--gold);
-  stroke-width: 3;
-  stroke-linecap: round;
-  transform-origin: 32px 32px;
-  transition: stroke-dashoffset 0.35s ease;
-  animation: loadingRingSpin 1.4s linear infinite;
-}
-.knight-loader.is-determinate .knight-loader-arc { animation: none; }
-.knight-loader-img {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 92px; /* у картинки широкие прозрачные поля — сам конь ~40px */
-  height: auto;
-  transform: translate(-52%, -50%);
-  animation: knightHop 1.1s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
-  pointer-events: none;
-}
-.knight-loader-shadow {
-  position: absolute;
-  left: 50%;
-  bottom: 9px;
-  width: 22px;
-  height: 4px;
-  margin-left: -11px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.35);
-  animation: knightHopShadow 1.1s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-}
-.knight-loader-text { font-size: 13.5px; color: var(--text-muted); line-height: 1.4; }
-@keyframes knightHop {
-  0%, 100% { transform: translate(-52%, -50%) rotate(0deg); }
-  20% { transform: translate(-52%, -46%) scale(1.04, 0.95); }
-  50% { transform: translate(-52%, -64%) rotate(-8deg); }
-  80% { transform: translate(-52%, -49%) rotate(2deg); }
-}
-@keyframes knightHopShadow {
-  0%, 100%, 80% { transform: scaleX(1); opacity: 0.9; }
-  50% { transform: scaleX(0.55); opacity: 0.4; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .knight-loader-img, .knight-loader-shadow, .knight-loader-arc { animation: none; }
-}
 #analysisLoading { padding: 6px 0 14px; }
+
+/* ---- Загрузчик «обход конём» (js/tour-loader.js) ---- */
+.tour-loader {
+  --tour-cell: color-mix(in srgb, var(--text) 6%, transparent);
+  --tour-cell-dark: color-mix(in srgb, var(--text) 14%, transparent);
+  --tour-visited: color-mix(in srgb, var(--gold) 38%, transparent);
+  --tour-trail: var(--gold);
+  --tour-knight: var(--accent);
+  --tour-text: var(--text-muted);
+  --tour-percent: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-style: normal;
+}
+.tour-loader-board {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--gold-soft);
+}
+.tour-loader-board svg { display: block; width: 100%; height: 100%; }
+.tour-cell { fill: var(--tour-cell); transition: fill 0.25s ease; }
+.tour-cell.is-dark { fill: var(--tour-cell-dark); }
+.tour-cell.is-visited { fill: var(--tour-visited); }
+.tour-cell.is-dark.is-visited { fill: color-mix(in srgb, var(--tour-visited), var(--tour-trail) 25%); }
+.tour-trail {
+  fill: none;
+  stroke: var(--tour-trail);
+  stroke-width: 1.1;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  opacity: 0.45;
+}
+.tour-knight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 20%;
+  height: 20%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Segoe UI Symbol", "DejaVu Sans", serif;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--tour-knight);
+  transition: transform 0.2s cubic-bezier(0.3, 0, 0.3, 1.4);
+}
+.tour-loader-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.tour-loader-percent {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--tour-percent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.tour-loader-text { font-size: 13.5px; color: var(--tour-text); line-height: 1.4; }
+.tour-loader.is-compact { gap: 10px; }
+.tour-loader.is-compact .tour-loader-board { width: 46px; height: 46px; border-radius: 4px; }
+.tour-loader.is-compact .tour-knight { font-size: 9px; }
+.tour-loader.is-compact .tour-loader-percent { font-size: 14px; }
+.tour-loader.is-compact .tour-loader-text { font-size: 11.5px; font-style: italic; }
+/* Окно разбора хода всегда тёмное */
+.move-detail-loading .tour-loader {
+  --tour-cell: rgba(244, 239, 228, 0.06);
+  --tour-cell-dark: rgba(244, 239, 228, 0.14);
+  --tour-visited: rgba(212, 165, 71, 0.38);
+  --tour-trail: #d4a547;
+  --tour-knight: #F4EFE4;
+  --tour-text: rgba(244, 239, 228, 0.6);
+  --tour-percent: #F4EFE4;
+}
+.char-card-loading .tour-loader { flex-direction: column; text-align: center; }
+.char-card-loading .tour-loader-board { width: 110px; height: 110px; }
+.char-card-loading .tour-knight { font-size: 20px; }
+.char-card-loading .tour-loader-info { align-items: center; }
+@media (prefers-reduced-motion: reduce) {
+  .tour-knight, .tour-cell { transition: none; }
+}
 
 /* ---- Сводка разбора: две колонки «вы / соперник» ---- */
 .analysis-compare {

@@ -2,41 +2,6 @@
 'use strict';
 
 /* =========================================================================
-   ЗАГРУЗЧИК С КОНЁМ
-   Конь прыгает внутри кольца. Без процента кольцо крутится, с процентом —
-   заполняется по ходу работы (разбор партии).
-   ========================================================================= */
-const KNIGHT_SRC_BY_ACCENT = {
-  gold: 'assests/knight.webp',
-  maroon: 'assests/knight-red.webp',
-  blue: 'assests/knight-blue.webp',
-  green: 'assests/knight-green.webp',
-};
-const KNIGHT_RING_LENGTH = 2 * Math.PI * 28;
-
-function knightLoaderHtml(text, { determinate = false } = {}) {
-  const src = KNIGHT_SRC_BY_ACCENT[document.documentElement.dataset.accent] || KNIGHT_SRC_BY_ACCENT.gold;
-  return `<div class="knight-loader${determinate ? ' is-determinate' : ''}" role="status">
-    <div class="knight-loader-stage">
-      <svg class="knight-loader-ring" viewBox="0 0 64 64" aria-hidden="true">
-        <circle class="knight-loader-track" cx="32" cy="32" r="28"></circle>
-        <circle class="knight-loader-arc" cx="32" cy="32" r="28"
-          style="stroke-dasharray:${KNIGHT_RING_LENGTH.toFixed(1)};stroke-dashoffset:${determinate ? KNIGHT_RING_LENGTH.toFixed(1) : (KNIGHT_RING_LENGTH * 0.72).toFixed(1)}"></circle>
-      </svg>
-      <img class="knight-loader-img" src="${src}" alt="">
-      <span class="knight-loader-shadow" aria-hidden="true"></span>
-    </div>
-    <div class="knight-loader-text">${escapeHtml(text)}</div>
-  </div>`;
-}
-function setKnightLoaderProgress(root, percent, text) {
-  const arc = root.querySelector('.knight-loader-arc');
-  if (arc) arc.style.strokeDashoffset = (KNIGHT_RING_LENGTH * (1 - clamp(percent, 0, 100) / 100)).toFixed(1);
-  const label = root.querySelector('.knight-loader-text');
-  if (label && text != null) label.textContent = text;
-}
-
-/* =========================================================================
    ОЦЕНКА ОДНОГО ХОДА
    Общая для разбора партии и для окна «Анализ хода» (в т.ч. по клику на
    ход в списке ходов, когда разбора ещё не было).
@@ -378,7 +343,10 @@ async function openMoveDetail(fenBefore, san, label = null) {
   factsEl.innerHTML = '';
   $id('moveDetailArrow').innerHTML = '';
   $id('moveDetailLegend').innerHTML = '';
-  loadingEl.innerHTML = knightLoaderHtml(t('Stockfish изучает позицию…'));
+  // Stockfish — около секунды (две позиции по 0,5–0,6 с), объяснение
+  // нейросети — 4–9 с. Без входа нейросети нет, весь путь — движок.
+  const loader = createTourLoader(loadingEl, { text: t('Stockfish изучает позицию…') })
+    .plan(chatSignedIn ? 20 : 90, 1300);
   loadingEl.classList.remove('hidden');
   modal.classList.remove('hidden');
 
@@ -428,6 +396,7 @@ async function openMoveDetail(fenBefore, san, label = null) {
   });
   if (!playedMove) {
     console.warn('Не удалось выполнить ход из SAN:', san);
+    loader.destroy();
     loadingEl.classList.add('hidden');
     return;
   }
@@ -446,13 +415,15 @@ async function openMoveDetail(fenBefore, san, label = null) {
     drawMoveDetailArrows(item, playedMove);
 
     if (!chatSignedIn) {
+      await loader.finish();
+      if (token !== moveDetailToken) return;
       loadingEl.classList.add('hidden');
       commentEl.textContent = t('Объяснение от нейросети доступно после входа в аккаунт.');
       commentEl.classList.remove('hidden');
       return;
     }
 
-    setKnightLoaderProgress(loadingEl, 0, t('Нейросеть объясняет ход…'));
+    loader.reach(20).plan(96, 7000).setText(t('Нейросеть объясняет ход…'));
     const verdict = moveVerdict(item);
     // Ответ движка на сыгранный ход — главное для объяснения: без него модель
     // не видит, чем ход опровергается (например, шах Сb4+ после Сxd8).
@@ -468,12 +439,15 @@ async function openMoveDetail(fenBefore, san, label = null) {
     });
     const reply = await provodChat([{ role: 'user', content: prompt }], { temperature: 0.4, task: 'move' });
     if (token !== moveDetailToken) return;
+    await loader.finish();
+    if (token !== moveDetailToken) return;
     commentEl.textContent = stripMarkdown(reply) || t('Не удалось получить комментарий.');
   } catch (error) {
     if (token !== moveDetailToken) return;
     commentEl.textContent = chatErrorMessage(error);
   } finally {
     if (token === moveDetailToken) {
+      loader.destroy();
       loadingEl.classList.add('hidden');
       if (commentEl.textContent) commentEl.classList.remove('hidden');
     }
@@ -483,18 +457,46 @@ async function openMoveDetail(fenBefore, san, label = null) {
 /* =========================================================================
    АНАЛИЗ ПАРТИИ
    ========================================================================= */
-function startProgress() {
-  const loadingEl = $id('analysisLoading');
-  loadingEl.innerHTML = knightLoaderHtml(t('Подготовка анализа…'), { determinate: true });
+// Быстрый этап разбора: позиции берутся из кэша или считаются по 0,25 с.
+// Сколько займёт следующая позиция — по среднему уже посчитанных.
+const PHASE1_STEP_GUESS_MS = 300;
+let phase1Loader = null;
+let phase1StartedAt = 0;
+
+function startProgress(total) {
+  phase1StartedAt = performance.now();
+  phase1Loader = createTourLoader($id('analysisLoading'), { text: t('Подготовка анализа…') })
+    .plan(100 / Math.max(1, total), PHASE1_STEP_GUESS_MS);
 }
 function updateProgress(step, total, san) {
-  const percent = Math.round((step / total) * 100);
-  setKnightLoaderProgress($id('analysisLoading'), percent, san
-    ? t('Проверка хода: {san} ({percent}%)', { san, percent })
-    : t('Анализ начальной позиции… ({percent}%)', { percent }));
+  if (!phase1Loader) return;
+  const perStep = (performance.now() - phase1StartedAt) / step;
+  phase1Loader.reach(step / total * 100)
+    .plan((step + 1) / total * 100, Math.max(60, perStep))
+    .setText(san ? t('Проверка хода: {san}', { san }) : t('Анализ начальной позиции…'));
 }
-function stopProgress(success = true) {
-  if (success) setKnightLoaderProgress($id('analysisLoading'), 100, t('Готово'));
+async function stopProgress(success = true) {
+  const loader = phase1Loader;
+  phase1Loader = null;
+  if (!loader) return;
+  if (success) await loader.finish(t('Готово'));
+  loader.destroy();
+}
+
+/* ---- Уточнение в фоне: компактный обход конём в плашке под результатом ----
+   Доли: позиции партии — до 60%, перепроверка ошибок — до 80%, комментарий
+   нейросети (4–9 с) — до 100%. Время шага каждого этапа — по уже сделанным. */
+const REFINE_SPLIT = { positions: 60, critical: 80 };
+let refineLoader = null;
+
+function startRefineLoader(firstStepGuessMs) {
+  const slot = document.querySelector('#analysisContent .analysis-refining-loader');
+  refineLoader = slot ? createTourLoader(slot, { text: t('Stockfish уточняет оценки…'), compact: true }) : null;
+  if (refineLoader) refineLoader.plan(REFINE_SPLIT.positions / 20, firstStepGuessMs);
+}
+function stopRefineLoader() {
+  if (refineLoader) refineLoader.destroy();
+  refineLoader = null;
 }
 
 function avg(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0; }
@@ -659,9 +661,8 @@ async function requestAnalysis() {
   btn.disabled = true;
   trackGoal('analysis_request');
 
-  startProgress();
-
   const runId = ++analysisRunId;
+  stopRefineLoader(); // прошлое уточнение, если шло, своё уже не покажет
 
   try {
     const fens = state.fenHistory;
@@ -683,6 +684,7 @@ async function requestAnalysis() {
     // (в т.ч. из Live Analysis во время партии), и только для полностью
     // непроанализированных позиций делаем короткий разовый скан.
     const total = fens.length;
+    startProgress(total);
     const prelimEvaluations = [];
     for (let i = 0; i < fens.length; i++) {
       const result = analysisCache.get(fens[i]) || await analyzePosition(fens[i], { movetime: 250 });
@@ -691,8 +693,10 @@ async function requestAnalysis() {
     }
 
     const prelimStats = computeGameStats(fens, moves, prelimEvaluations);
-    stopProgress(true);
+    await stopProgress(true);
+    if (runId !== analysisRunId) return;
     renderAnalysis(prelimStats, moves.length, '', { refining: true }); // что сейчас считается — в плашке уточнения
+    startRefineLoader(weakPc ? 400 : 700);
     hideConnectionBanner();
 
     // ФАЗА 2 (фоновая, ТЗ п.2): доуглубляем и пересчитываем, не блокируя окно.
@@ -702,6 +706,7 @@ async function requestAnalysis() {
     content.innerHTML = `<p class="analysis-error">${t('Не удалось получить анализ.')} ${escapeHtml(error.message)}</p>`;
     showConnectionBanner(t('Ошибка: {error}', { error: error.message }));
   } finally {
+    stopProgress(false);
     loading.classList.add('hidden');
     btn.disabled = false;
     btn.textContent = t('Обновить анализ');
@@ -715,14 +720,14 @@ async function requestAnalysis() {
 const REFINE_BUDGET_MS = 40000;
 const REFINE_CRITICAL_BUDGET_MS = 75000;
 
-// Прогресс уточнения в плашке под предварительным результатом
-function setRefineProgress(text) {
-  const el = document.querySelector('#analysisContent .analysis-refining-text');
-  if (el) el.textContent = text;
-}
-
 async function refineGameAnalysis(runId, fens, moves, weakPc, baseDepth, criticalDepth) {
   const startedAt = Date.now();
+  const loader = refineLoader; // своя ссылка: новый запуск заведёт новый
+  const progress = (reach, to, expectedMs, text) => {
+    if (!loader || runId !== analysisRunId) return;
+    loader.reach(reach).plan(to, expectedMs);
+    if (text) loader.setText(text);
+  };
   try {
     // Очередь «доуглубить старые позиции» копилась для чата во время партии;
     // всю партию мы и так сейчас посчитаем — не ждём её.
@@ -734,26 +739,36 @@ async function refineGameAnalysis(runId, fens, moves, weakPc, baseDepth, critica
     // сверх базовой: раньше это правило гнало почти каждую позицию до глубины 20.
     // Если счёт затянулся — оставшиеся позиции считаем быстро (на 4 полухода мельче).
     const evaluations = [];
+    const posShare = REFINE_SPLIT.positions / fens.length;
+    let stepMs = weakPc ? 400 : 700; // до первой позиции — догадка, дальше среднее
     for (let i = 0; i < fens.length; i++) {
       if (runId !== analysisRunId) return;
       const late = Date.now() - startedAt > REFINE_BUDGET_MS;
       const base = late ? Math.max(8, baseDepth - 4) : baseDepth;
       const prevDepth = i > 0 && evaluations[i - 1] ? evaluations[i - 1].depth || 0 : 0;
       const minDepth = late ? base : clamp(prevDepth - 1, base, base + 2);
-      setRefineProgress(t('Stockfish уточняет оценки: позиция {i} из {n}…', { i: i + 1, n: fens.length }));
+      if (i > 0) stepMs = (Date.now() - startedAt) / i;
+      progress(i * posShare, (i + 1) * posShare, stepMs,
+        t('Stockfish уточняет оценки: позиция {i} из {n}…', { i: i + 1, n: fens.length }));
       const result = await analyzePosition(fens[i], { minDepth });
       evaluations.push(result);
     }
+    const positionsDoneAt = Date.now();
     if (runId !== analysisRunId) return;
 
     let stats = computeGameStats(fens, moves, evaluations);
 
     // Критические ходы (ТЗ п.5/11): позицию ДО хода — глубже и с MultiPV.
     const criticalItems = stats.moveAnalysis.filter(m => m.critical).sort((a, b) => b.winDrop - a.winDrop).slice(0, weakPc ? 3 : 6);
+    // Глубина 20 вместо 14 — раз в 5–6 дольше обычной позиции, плюс поиск вариантов
+    const critShare = (REFINE_SPLIT.critical - REFINE_SPLIT.positions) / Math.max(1, criticalItems.length);
+    let critMs = stepMs * 6 + (weakPc ? 500 : 900);
     for (const [k, item] of criticalItems.entries()) {
       if (runId !== analysisRunId) return;
       if (Date.now() - startedAt > REFINE_CRITICAL_BUDGET_MS) break; // остальное — по базовой глубине
-      setRefineProgress(t('Stockfish перепроверяет ошибки: {i} из {n}…', { i: k + 1, n: criticalItems.length }));
+      if (k > 0) critMs = (Date.now() - positionsDoneAt) / k;
+      progress(REFINE_SPLIT.positions + k * critShare, REFINE_SPLIT.positions + (k + 1) * critShare, critMs,
+        t('Stockfish перепроверяет ошибки: {i} из {n}…', { i: k + 1, n: criticalItems.length }));
       try {
         const deep = await analyzePosition(item.fenBefore, { minDepth: criticalDepth });
         if (deep) { item.depth = deep.depth; item.bestMove = deep.bestMove; item.pv = deep.pv; }
@@ -774,7 +789,8 @@ async function refineGameAnalysis(runId, fens, moves, weakPc, baseDepth, critica
       if (refined) { m.depth = refined.depth; m.bestMove = refined.bestMove; m.pv = refined.pv; m.alternatives = refined.alternatives; }
     });
 
-    setRefineProgress(chatSignedIn ? t('Нейросеть пишет комментарий к партии…') : t('Почти готово…'));
+    // Комментарий нейросети — 4–9 с, обычно ~6,5 с (логи chat-proxy)
+    progress(REFINE_SPLIT.critical, 97, 7000, chatSignedIn ? t('Нейросеть пишет комментарий к партии…') : t('Почти готово…'));
     const pgn = state.game.pgn();
     let comment = chatSignedIn ? t('Комментарий недоступен.') : t('Комментарий нейросети к партии появится после входа в аккаунт.');
     if (chatSignedIn) try {
@@ -791,6 +807,9 @@ async function refineGameAnalysis(runId, fens, moves, weakPc, baseDepth, critica
     }
 
     if (runId !== analysisRunId) return; // пользователь успел запустить новый анализ — не затираем его результат
+    if (loader) await loader.finish(t('Готово'));
+    if (runId !== analysisRunId) return;
+    stopRefineLoader();
 
     renderAnalysis(stats, moves.length, comment);
 
@@ -809,6 +828,7 @@ async function refineGameAnalysis(runId, fens, moves, weakPc, baseDepth, critica
     // результату партии (см. applyRatedGameResult в account.js).
   } catch (error) {
     console.error('Ошибка фонового уточнения анализа:', error);
+    if (runId === analysisRunId) stopRefineLoader();
   }
 }
 
@@ -872,7 +892,7 @@ function renderAnalysis(stats, totalPly, comment, { refining = false } = {}) {
 
   html += `<p class="analysis-comment">${escapeHtml(comment)}</p>`;
   if (refining) {
-    html += `<p class="analysis-disclaimer analysis-refining">${achievementIconSvg('hourglass')}<span>${t('Быстрый предварительный результат — значения скоро уточнятся.')} <b class="analysis-refining-text">${t('Stockfish уточняет оценки…')}</b></span></p>`;
+    html += `<div class="analysis-disclaimer analysis-refining"><span>${t('Быстрый предварительный результат — значения скоро уточнятся.')}</span><div class="analysis-refining-loader"></div></div>`;
   }
   html += `<p class="analysis-disclaimer">${t('Уровень — по средней потере за ход: ходы в уже решённой позиции весят меньше, дебютная теория и единственные ходы не считаются. Это грубая оценка этой партии; рейтинг аккаунта меняется по результату и силе соперника.')}</p>`;
   content.innerHTML = html;
