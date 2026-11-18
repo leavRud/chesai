@@ -334,6 +334,10 @@ textarea, input {
 img.piece-417db { -webkit-user-drag: none; -webkit-touch-callout: none; }
 /* В светлой теме тень отделяет белые фигуры от светлых клеток */
 html:not(.dark) img.piece-417db { filter: drop-shadow(0 1px 1.5px rgba(40, 25, 15, 0.35)); }
+/* Нажатие на фигуру без рывка (game.js): пока курсор не сдвинулся,
+   «летящая» копия спрятана, а фигура остаётся на своей клетке */
+body.board-drag-pending > img.piece-417db { visibility: hidden !important; }
+body.board-drag-pending #board .square-55d63 img.piece-417db { display: inline !important; }
 
 .board-b72b1 {
   border: none !important;
@@ -1732,13 +1736,14 @@ html:not(.dark) .home-topbar .settings-icon-btn:hover { background: rgba(0, 0, 0
   max-width: 440px;
   background: rgba(20, 17, 14, 0.72);
   color: #F4EFE4;
-  box-shadow: -20px 0 50px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
   transform: translateX(100%);
-  transition: transform 0.4s cubic-bezier(0.22, 0.9, 0.24, 1);
+  transition: transform 0.4s cubic-bezier(0.22, 0.9, 0.24, 1), box-shadow 0.4s ease;
 }
-.settings-overlay.open .settings-panel { transform: translateX(0); }
+/* Тень только у открытой панели: у закрытой размытие заходило на экран
+   тёмной полосой по правому краю */
+.settings-overlay.open .settings-panel { transform: translateX(0); box-shadow: -20px 0 50px rgba(0, 0, 0, 0.45); }
 html.dark .settings-panel { background: rgba(10, 10, 10, 0.78); }
 
 .settings-header {
@@ -4369,3 +4374,31 @@ html.dark .modal .char-tab.is-active { color: #1a1408; }
 /* Подсказки-имена под полем */
 .modal .char-example-chip { transition: color 0.15s ease, background-color 0.15s ease; }
 .modal .char-example-chip:hover { background: var(--accent-soft); }
+
+/* =========================================================================
+   Экран игры — мягкие тени (18.11.2026)
+   Неоморфизм оставляем, но тише: меньше смещение и размытие, тени
+   полупрозрачные. Рядом с плоскими модалками прежние тени выглядели
+   тяжёлыми. Главный экран (вне .app) не трогаем.
+   ========================================================================= */
+.app {
+  --sd-lg: 5px 5px 16px color-mix(in srgb, var(--shadow-dark) 65%, transparent), -5px -5px 16px color-mix(in srgb, var(--shadow-light) 75%, transparent);
+  --sd-md: 3px 3px 10px color-mix(in srgb, var(--shadow-dark) 60%, transparent), -3px -3px 10px color-mix(in srgb, var(--shadow-light) 70%, transparent);
+  --sd-sm: 2px 2px 5px color-mix(in srgb, var(--shadow-dark) 55%, transparent), -2px -2px 5px color-mix(in srgb, var(--shadow-light) 65%, transparent);
+  --inset-lg: inset 3px 3px 8px color-mix(in srgb, var(--shadow-dark) 55%, transparent), inset -3px -3px 8px color-mix(in srgb, var(--shadow-light) 65%, transparent);
+  --inset-sm: inset 2px 2px 5px color-mix(in srgb, var(--shadow-dark) 50%, transparent), inset -2px -2px 5px color-mix(in srgb, var(--shadow-light) 60%, transparent);
+}
+html.dark .app {
+  --sd-lg: 5px 5px 18px rgba(0, 0, 0, 0.55), -3px -3px 14px rgba(255, 255, 255, 0.025);
+  --sd-md: 3px 3px 12px rgba(0, 0, 0, 0.5), -2px -2px 10px rgba(255, 255, 255, 0.025);
+  --sd-sm: 2px 2px 6px rgba(0, 0, 0, 0.45), -1px -1px 5px rgba(255, 255, 255, 0.02);
+  --inset-lg: inset 3px 3px 8px rgba(0, 0, 0, 0.5), inset -2px -2px 6px rgba(255, 255, 255, 0.025);
+  --inset-sm: inset 2px 2px 5px rgba(0, 0, 0, 0.45), inset -1px -1px 4px rgba(255, 255, 255, 0.02);
+}
+.app .btn-accent,
+.app .btn-primary.btn-primary-active { box-shadow: var(--sd-md); }
+.app .btn-accent:active,
+.app .btn-primary.btn-primary-active:active { box-shadow: inset 2px 2px 6px color-mix(in srgb, var(--accent-dark) 70%, transparent); }
+/* Свечение кнопок управления под доской — тише */
+.app .controls-row .btn-danger:hover { box-shadow: var(--sd-md), 0 0 12px color-mix(in srgb, var(--danger) 45%, transparent); }
+.app .controls-row .btn-ghost:hover { box-shadow: var(--sd-md), 0 0 12px var(--accent-soft); }

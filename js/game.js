@@ -91,6 +91,7 @@ function initGame() {
     onDragStart,
     onDrop,
     onSnapEnd,
+    onSnapbackEnd: clearBoardDragPending, // нажатие на месте: копия вернулась
     moveSpeed: 220,
     snapbackSpeed: 260,
     snapSpeed: 90,
@@ -211,6 +212,66 @@ function onSquareTap(e) {
   clearHighlights();
   const isLegal = state.game.moves({ square: from, verbose: true }).some((m) => m.to === square);
   if (isLegal) tryUserMove(from, square);
+}
+
+/* ---- Нажатие на фигуру без рывка ----
+   chessboard.js начинает перетаскивание сразу при нажатии: копия фигуры
+   прыгает центром под курсор, а при отпускании на той же клетке едет назад.
+   Поэтому обычное нажатие (выбор фигуры) выглядело как попытка её унести.
+   Пока курсор или палец не сдвинулся на DRAG_THRESHOLD_PX, класс на body
+   прячет «летящую» копию и оставляет фигуру на клетке; сдвинули дальше —
+   это перетаскивание, класс снимаем. Сам ход по-прежнему делает
+   chessboard.js: нажатие на месте приходит в onDrop с source === target. */
+const DRAG_THRESHOLD_PX = 6;
+const DRAG_PENDING_CLASS = 'board-drag-pending';
+let boardPress = null;
+let boardPressTimer = 0;
+
+function boardPointerXY(e) {
+  const p = e.touches && e.touches.length ? e.touches[0] : (e.changedTouches ? e.changedTouches[0] : e);
+  return p ? { x: p.clientX, y: p.clientY } : null;
+}
+
+function onBoardPress(e) {
+  if (!e.target.closest || !e.target.closest('.piece-417db')) return;
+  clearTimeout(boardPressTimer);
+  boardPress = boardPointerXY(e);
+  document.body.classList.add(DRAG_PENDING_CLASS);
+}
+
+function onBoardPressMove(e) {
+  if (!boardPress) return;
+  const p = boardPointerXY(e);
+  if (p && Math.hypot(p.x - boardPress.x, p.y - boardPress.y) > DRAG_THRESHOLD_PX) {
+    boardPress = null;
+    document.body.classList.remove(DRAG_PENDING_CLASS);
+  }
+}
+
+function clearBoardDragPending() {
+  clearTimeout(boardPressTimer);
+  document.body.classList.remove(DRAG_PENDING_CLASS);
+}
+
+function onBoardRelease() {
+  if (!boardPress) return;
+  boardPress = null;
+  // Копия ещё едет на место — прячем её, пока chessboard.js не скажет, что
+  // доехала (onSnapbackEnd). Таймер — на случай, если анимации не было.
+  clearTimeout(boardPressTimer);
+  boardPressTimer = setTimeout(clearBoardDragPending, 700);
+}
+
+{
+  const boardEl = $id('board');
+  boardEl.addEventListener('mousedown', onBoardPress, true);
+  boardEl.addEventListener('touchstart', onBoardPress, { capture: true, passive: true });
+  // На window, как и у chessboard.js: отпускание за пределами страницы тоже ловится
+  window.addEventListener('mousemove', onBoardPressMove, { passive: true });
+  window.addEventListener('touchmove', onBoardPressMove, { passive: true });
+  window.addEventListener('mouseup', onBoardRelease);
+  window.addEventListener('touchend', onBoardRelease);
+  window.addEventListener('touchcancel', onBoardRelease);
 }
 
 /* ---- Превращение пешки: игрок сам выбирает фигуру ---- */
