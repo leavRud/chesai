@@ -88,6 +88,9 @@ state.lastAutoReplies = [];
 state.autoReplyPending = false;
 state.characterTyping = false;
 state.pliesSinceCharacterSpoke = 0;
+state.characterPhase = 0;          // персонаж с двумя состояниями: 0 — исходное, 1 — второе
+state.characterEloLog = [];        // Elo персонажа на каждом его ходе — для рейтинга
+state.characterShiftAnnounce = false;
 state.gameLimitNotified = false;
 state.settings.temperature = temp;
 state.timeLimited = localStorage.getItem('chessTimeLimited') !== '0';

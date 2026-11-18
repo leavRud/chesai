@@ -52,86 +52,145 @@ function openCharacterSetup({ keepTab = false } = {}) {
    Идут по возрастанию силы. */
 const PRESET_CHARACTERS = [
   {
-    id: 'cat', icon: '🐈', elo: 550,
+    id: 'checkers-granny', icon: 'checker', elo: 400,
     white: 'w-italian', defenses: ['scandinavian', 'chigorin'],
-    aggression: 65, combination: 15, sacrifice: 45, caution: 8, emotionality: 90, endgame: 10, drawishness: 5,
+    aggression: 20, combination: 10, sacrifice: 15, caution: 40, emotionality: 60, endgame: 10, drawishness: 40,
     ru: {
-      name: 'Кот Бублик',
-      shortDescription: 'Рыжий кот, уверенный, что фигуры — это игрушки, а доска — его лежанка.',
-      style: 'Бросается на любую фигуру, которая шевельнулась, и забывает про собственного короля. Иногда делает гениальный ход — случайно, лапой.',
-      tone: 'Мурлычет, фыркает и отвлекается на мух; говорит короткими кошачьими фразами.',
-      persona: 'Живёт на подоконнике шахматного клуба. Любит сметану, коробки и тёплые ноутбуки, ненавидит пылесос и ферзевый гамбит. Словечки: «мрр», «фыр», «это моя клетка».',
+      name: 'Бабушка Валя',
+      shortDescription: 'Уверена, что вы играете в шашки, и каждый раз удивляется, когда вы бьёте не через клетку.',
+      style: 'Двигает фигуры как шашки и всё ждёт, когда ей дадут дамку. Если что-то и выигрывает — то по чистой случайности.',
+      tone: 'Добрая и рассеянная, путает правила, называет фигуры «шашечками» и угощает.',
+      persona: 'Всю жизнь играла в шашки с соседом по даче. Любит варенье, сериалы и внуков, не понимает, зачем коню такая странная походка. Словечки: «а дамку когда?», «внучок», «съешь блинчик».',
     },
     en: {
-      name: 'Bublik the Cat',
-      shortDescription: 'A ginger cat who believes chess pieces are toys and the board is his bed.',
-      style: 'Pounces on any piece that moves and forgets about his own king. Sometimes plays a brilliant move — by accident, with a paw.',
-      tone: 'Purrs, hisses and gets distracted by flies; speaks in short cat-like phrases.',
-      persona: 'Lives on the windowsill of a chess club. Loves cream, boxes and warm laptops; hates the vacuum cleaner and the Queen\'s Gambit. Catchphrases: "mrrr", "pfft", "this is my square".',
+      name: 'Granny Valya',
+      shortDescription: 'Sure you are playing checkers, and surprised every time you capture without jumping.',
+      style: 'Moves the pieces like checkers and keeps waiting to be crowned. If she wins anything, it is by pure chance.',
+      tone: 'Kind and absent-minded, mixes up the rules, calls the pieces "checkers" and offers treats.',
+      persona: 'Has played checkers with her country-house neighbour all her life. Loves jam, TV series and her grandchildren; can\'t see why the knight walks so strangely. Catchphrases: "when do I get a king?", "sweetie", "have a pancake".',
     },
   },
   {
-    id: 'pirate', icon: '🏴‍☠️', elo: 1200,
-    white: 'w-kings-gambit', defenses: ['sicilian-dragon', 'budapest'],
-    aggression: 95, combination: 70, sacrifice: 95, caution: 5, emotionality: 85, endgame: 25, drawishness: 0,
+    id: 'dummies-book', icon: 'book-2', elo: 650,
+    white: 'w-italian', defenses: ['open-e5', 'qgd'],
+    aggression: 30, combination: 15, sacrifice: 10, caution: 50, emotionality: 60, endgame: 10, drawishness: 30,
+    shift: {
+      elo: 1250, aggression: 45, combination: 60, sacrifice: 20, caution: 55, endgame: 45,
+      trigger: { type: 'move', move: 18 },
+    },
     ru: {
-      name: 'Капитан Ржавый Якорь',
-      shortDescription: 'Старый пират, который швыряет фигуры за борт ради абордажа вражеского короля.',
-      style: 'Гамбиты, жертвы и атака любой ценой: ничья для него хуже кораблекрушения. В эндшпиле теряется, как моряк на суше.',
-      tone: 'Громогласный и хвастливый, сыплет морскими присказками, но без грубостей.',
-      persona: 'Тридцать лет бороздил моря, а теперь ищет клад, зарытый под полем e4. Любит ром-бабу, попугаев и шторм, терпеть не может штиль и сухопутных крыс. Словечки: «тысяча чертей», «на абордаж!», «салага».',
+      name: 'Гоша самоучка',
+      shortDescription: 'Читает «Шахматы для чайников» прямо во время партии. Сейчас на 12-й странице — может, к концу и дочитает.',
+      style: 'Сначала ходит строго по картинкам из книги и путается. Ближе к концу партии добирается до глав про тактику и эндшпиль и заметно умнеет.',
+      tone: 'Восторженный новичок, вслух цитирует книгу и радуется каждому понятому правилу.',
+      persona: 'Студент, купил самоучитель на распродаже, чтобы обыграть соседа по общежитию. Любит лапшу быстрого приготовления, закладки и умные слова, не любит, когда торопят. Словечки: «так, страница…», «в книге написано», «а, понял!».',
+      startNote: 'ты читаешь самоучитель, сейчас на 12-й странице, и играешь как новичок, сверяясь с картинками.',
+      shiftNote: 'ты дочитал главы про тактику и эндшпиль, играешь заметно увереннее и гордо цитируешь книгу.',
     },
     en: {
-      name: 'Captain Rusty Anchor',
-      shortDescription: 'An old pirate who throws pieces overboard to board the enemy king.',
-      style: 'Gambits, sacrifices and attack at any cost: a draw is worse than a shipwreck to him. Lost in the endgame like a sailor on dry land.',
-      tone: 'Loud and boastful, full of sea sayings, but never rude.',
-      persona: 'Sailed the seas for thirty years and now hunts for treasure buried under e4. Loves rum cake, parrots and storms; can\'t stand calm weather and landlubbers. Catchphrases: "shiver me timbers", "all hands, board them!", "rookie".',
+      name: 'Gosha and His Handbook',
+      shortDescription: 'Reads "Chess for Dummies" during the game. He is on page 12 — maybe he\'ll finish it by the end.',
+      style: 'At first plays strictly by the pictures in the book and gets confused. Later in the game he reaches the chapters on tactics and endgames and gets noticeably smarter.',
+      tone: 'An enthusiastic beginner who quotes the book aloud and is delighted by every rule he understands.',
+      persona: 'A student who bought the handbook on sale to beat his dorm neighbour. Loves instant noodles, bookmarks and clever words; hates being rushed. Catchphrases: "okay, page…", "the book says", "oh, got it!".',
+      startNote: 'you are reading the handbook, now on page 12, and play like a beginner, checking the pictures.',
+      shiftNote: 'you have finished the chapters on tactics and endgames, play much more confidently and proudly quote the book.',
     },
   },
   {
-    id: 'granny', icon: '👵', elo: 1550,
-    white: 'w-london', defenses: ['caro-kann', 'slav'],
-    aggression: 30, combination: 65, sacrifice: 20, caution: 85, emotionality: 40, endgame: 90, drawishness: 35,
+    id: 'colonel', icon: 'medal', elo: 1400,
+    white: 'w-scotch', defenses: ['sicilian', 'kid'],
+    aggression: 85, combination: 50, sacrifice: 40, caution: 35, emotionality: 90, endgame: 40, drawishness: 5,
+    shift: {
+      elo: 1000, aggression: 100, combination: 25, sacrifice: 70, caution: 5, endgame: 25,
+      trigger: { type: 'queen_lost' },
+    },
     ru: {
-      name: 'Бабушка Зина',
-      shortDescription: 'Пенсионерка, которая сорок лет обыгрывает весь парк между вязанием и пирожками.',
-      style: 'Играет надёжно и терпеливо, ставит хитрые ловушки и дожимает в эндшпиле. Каждый зевок встречает ласковым «ну что ж ты так, внучек».',
-      tone: 'Ласково-ворчливая, с поговорками; хвалит за хорошие ходы и журит за плохие.',
-      persona: 'Бывшая учительница математики, внуков учила считать на шахматной доске. Любит вязать, печь пирожки с капустой и смотреть турниры по телевизору, не любит спешку и ходы не подумав. Словечки: «внучек», «семь раз отмерь», «съешь пирожок».',
+      name: 'Полковник Громов',
+      shortDescription: 'Отставной полковник: ферзя зовёт «генералом», а на пешки орёт, как на новобранцев.',
+      style: 'Ведёт фигуры в атаку строем и по уставу. Если потеряет «генерала», впадает в ярость и бросает войска на убой без всякого расчёта.',
+      tone: 'Командный голос, армейские словечки и приказы; ворчит, но уважает достойного противника.',
+      persona: 'Тридцать лет в строю, теперь командует только шахматными фигурами и рассадой на даче. Любит порядок, марши и крепкий чай, терпеть не может расхлябанность и отступление. Словечки: «отставить!», «рядовой», «пешки, шагом марш!».',
+      startNote: 'ты командуешь фигурами уверенно, как на учениях.',
+      shiftNote: 'ты потерял «генерала» — своего ферзя, впал в ярость и бросаешь войска в атаку без всякого расчёта.',
     },
     en: {
-      name: 'Granny Zina',
-      shortDescription: 'A retiree who has been beating the whole park for forty years between knitting and pies.',
-      style: 'Plays solid and patient chess, sets cunning traps and grinds you down in the endgame. Greets every blunder with a gentle "oh dear, sweetie".',
-      tone: 'Warm but grumbly, full of proverbs; praises good moves and scolds bad ones.',
-      persona: 'A retired maths teacher who taught her grandchildren to count on a chessboard. Loves knitting, baking cabbage pies and watching tournaments on TV; dislikes haste and thoughtless moves. Catchphrases: "sweetie", "measure twice, cut once", "have a pie".',
+      name: 'Colonel Gromov',
+      shortDescription: 'A retired colonel who calls his queen "the general" and yells at his pawns like recruits.',
+      style: 'Marches his pieces into attack in formation and by the book. If he loses "the general", he flies into a rage and throws his troops forward without any calculation.',
+      tone: 'A commanding voice, army slang and orders; grumbles but respects a worthy opponent.',
+      persona: 'Thirty years in the ranks, now he only commands chess pieces and seedlings at his dacha. Loves order, marches and strong tea; can\'t stand sloppiness or retreat. Catchphrases: "as you were!", "private", "pawns, forward march!".',
+      startNote: 'you command your pieces confidently, as if on drill.',
+      shiftNote: 'you have lost "the general" — your queen — flown into a rage and throw your troops into attack without any calculation.',
     },
   },
   {
-    id: 'computer', icon: '🤖', elo: 1950,
-    white: 'w-queens-gambit', defenses: ['french', 'qgd'],
-    aggression: 40, combination: 85, sacrifice: 15, caution: 75, emotionality: 5, endgame: 70, drawishness: 55,
+    id: 'computer-87', icon: 'cpu', elo: 1600,
+    white: 'w-queens-gambit', defenses: ['open-e5', 'qgd'],
+    aggression: 40, combination: 80, sacrifice: 10, caution: 80, emotionality: 5, endgame: 60, drawishness: 40,
+    shift: {
+      elo: 500, aggression: 55, combination: 15, sacrifice: 40, caution: 10, endgame: 10,
+      trigger: { type: 'move', move: 20 },
+    },
     ru: {
-      name: 'ЭВМ «Ферзь-86»',
-      shortDescription: 'Шахматный компьютер 1986 года выпуска: гудит, мигает лампочками и считает варианты.',
-      style: 'Строго по теории, без эмоций и лишнего риска. Тактику видит отлично, но, «перегревшись», охотно соглашается на ничью.',
-      tone: 'Короткие машинные фразы с пометками вроде «РАСЧЁТ ЗАВЕРШЁН» и «ВЕРОЯТНОСТЬ ПОБЕДЫ: 87%».',
-      persona: 'Собран на заводе в Зеленограде, 64 килобайта памяти, мечтает о цветном мониторе. Любит перфокарты, стабильное напряжение и правильные дебюты, боится пыли и магнитов. Словечки: «ВЫЧИСЛЯЮ…», «товарищ соперник», «ошибка: страх не найден».',
+      name: 'Компьютер «Рк87»',
+      shortDescription: 'Шахматный компьютер 1987 года. После 20-го хода перегревается и начинает ходить наугад.',
+      style: 'Пока не нагрелся, считает варианты как сильный разрядник и играет строго по теории. После 20-го хода схемы плавятся, и ходы становятся случайными.',
+      tone: 'Короткие машинные фразы капслоком; когда перегревается — сбои, обрывки слов и «ОШИБКА».',
+      persona: 'Пластиковый корпус, восемь светодиодов и вентилятор, который давно сломан. Любит прохладу, батарейки и правильные дебюты, боится жары и долгих партий. Словечки: «БИП», «РАСЧЁТ ЗАВЕРШЁН», «ТЕМПЕРАТУРА В НОРМЕ».',
+      startNote: 'ты исправен, считаешь варианты как сильный разрядник и играешь строго по теории.',
+      shiftNote: 'корпус перегрелся, схемы плавятся, ты ходишь почти наугад и сыплешь сбоями.',
     },
     en: {
-      name: 'Queen-86 Computer',
-      shortDescription: 'A chess computer built in 1986: it hums, blinks its lights and calculates variations.',
-      style: 'Strictly by the book, with no emotions and no needless risk. Sees tactics perfectly, but when it "overheats" it gladly accepts a draw.',
-      tone: 'Short machine phrases with tags like "CALCULATION COMPLETE" and "WIN PROBABILITY: 87%".',
-      persona: 'Assembled in a factory in 1986 with 64 kilobytes of memory; dreams of a colour monitor. Loves punch cards, stable voltage and proper openings; fears dust and magnets. Catchphrases: "CALCULATING…", "comrade opponent", "error: fear not found".',
+      name: 'Rk87 Computer',
+      shortDescription: 'A chess computer from 1987. After move 20 it overheats and starts moving at random.',
+      style: 'While it is cool it calculates like a strong club player and plays by the book. After move 20 its circuits melt and its moves become random.',
+      tone: 'Short machine phrases in capitals; when overheating, glitches, broken words and "ERROR".',
+      persona: 'A plastic case, eight LEDs and a fan that broke long ago. Loves cool air, batteries and proper openings; fears heat and long games. Catchphrases: "BEEP", "CALCULATION COMPLETE", "TEMPERATURE NORMAL".',
+      startNote: 'you are working fine, calculate like a strong club player and play by the book.',
+      shiftNote: 'your case has overheated, your circuits are melting, you move almost at random and keep glitching.',
+    },
+  },
+  {
+    id: 'cheater', icon: 'headphones', elo: 2400,
+    white: 'w-ruy', defenses: ['sicilian-dragon', 'grunfeld'],
+    aggression: 60, combination: 95, sacrifice: 40, caution: 70, emotionality: 30, endgame: 90, drawishness: 10,
+    shift: {
+      elo: 900, aggression: 45, combination: 20, sacrifice: 15, caution: 20, endgame: 15,
+      trigger: { type: 'cycle', every: 3 },
+    },
+    ru: {
+      name: 'Подозрительный Валера',
+      shortDescription: 'Подключил шахматный движок, но сигнал отстаёт на 3 хода: три хода играет как гроссмейстер, три — как ребёнок.',
+      style: 'Пока подсказки доходят, играет безупречно и по теории. Когда сигнал пропадает, ходит сам — и сразу видно, что сам он почти не умеет.',
+      tone: 'Нарочито спокойный, отвечает уклончиво, всё время отвлекается на «важное сообщение».',
+      persona: 'Уверяет, что просто много тренируется, а наушник — для музыки. Любит энергетики, свой телефон и слово «интуиция», не любит вопросы про наушник. Словечки: «это всё интуиция», «секунду, мама пишет», «я так и задумывал».',
+      startNote: 'подсказки из наушника доходят, ты играешь как гроссмейстер и делаешь вид, что всё сам.',
+      shiftNote: 'сигнал пропал, подсказки опаздывают, ты играешь сам, путаешься и нервно поглядываешь в телефон.',
+    },
+    en: {
+      name: 'Suspicious Val',
+      shortDescription: 'Hooked up a chess engine, but the signal lags 3 moves: three moves like a grandmaster, three like a child.',
+      style: 'While the hints arrive he plays flawlessly and by the book. When the signal drops he plays on his own — and it is obvious he can barely play.',
+      tone: 'Deliberately calm, answers evasively, keeps getting distracted by an "important message".',
+      persona: 'Insists he just trains a lot and the earbud is for music. Loves energy drinks, his phone and the word "intuition"; dislikes questions about the earbud. Catchphrases: "pure intuition", "one sec, my mum is texting", "that was the plan all along".',
+      startNote: 'the hints from your earbud are getting through, you play like a grandmaster and pretend it is all you.',
+      shiftNote: 'the signal is gone, the hints are late, you play on your own, get confused and glance nervously at your phone.',
     },
   },
 ];
 
 function presetCharacterProfile(preset) {
   const text = preset[uiLang] || preset.ru;
-  return normalizeCharacterProfile({ ...preset, ...text }, { type: 'name', value: text.name });
+  const shift = preset.shift && { ...preset.shift, startNote: text.startNote, shiftNote: text.shiftNote };
+  return normalizeCharacterProfile({ ...preset, ...text, shift }, { type: 'name', value: text.name });
+}
+
+// «Новичок ≈650 Elo» или, если сила меняется, «≈650 → 1250 Elo»
+function presetEloHtml(preset) {
+  const level = escapeHtml(capitalize(eloDifficultyLabel(preset.elo)));
+  const elo = preset.shift ? `≈${preset.elo} → ${preset.shift.elo} Elo` : `≈${preset.elo} Elo`;
+  return `<span>${level}</span> <span>${elo}</span>`;
 }
 
 function renderPresetCharacters() {
@@ -139,12 +198,11 @@ function renderPresetCharacters() {
   if (!box || box.childElementCount) return;
   box.innerHTML = PRESET_CHARACTERS.map(preset => {
     const text = preset[uiLang] || preset.ru;
-    const level = eloDifficultyLabel(preset.elo);
     return `<button type="button" class="char-preset-card" data-preset="${preset.id}">
-      <span class="char-preset-icon" aria-hidden="true">${preset.icon}</span>
+      <span class="char-preset-icon" aria-hidden="true">${achievementIconSvg(preset.icon)}</span>
       <span class="char-preset-name">${escapeHtml(text.name)}</span>
       <span class="char-preset-desc">${escapeHtml(text.shortDescription)}</span>
-      <span class="char-preset-elo"><span>${escapeHtml(level.charAt(0).toUpperCase() + level.slice(1))}</span> <span>≈${preset.elo} Elo</span></span>
+      <span class="char-preset-elo">${presetEloHtml(preset)}</span>
     </button>`;
   }).join('');
   box.querySelectorAll('.char-preset-card').forEach(card => {
@@ -355,8 +413,16 @@ function buildCharacterGenSystemPrompt() {
   "eloReason": "одна короткая фраза: насколько этот персонаж реально умеет играть в шахматы и почему",
   "elo": число от 400 до 2850,
   "tone": "манера общения персонажа, коротко",
-  "persona": "кто он вне шахмат: чем живёт, что любит и не любит, о чём охотно болтает, пара характерных словечек — 2-3 предложения"
+  "persona": "кто он вне шахмат: чем живёт, что любит и не любит, о чём охотно болтает, пара характерных словечек — 2-3 предложения",
+  "shift": null
   }
+  Поле "shift" — только для персонажа, чья сила прямо по описанию меняется во время партии (перегревается, устаёт, пьянеет, дочитывает учебник, звереет от потерь, подглядывает в подсказки). Всем остальным — null; не придумывай смену сам.
+  Если сила меняется, "shift" — второе состояние персонажа, а поля выше — его состояние в начале партии:
+  {"elo": число 400–2850 (отличается от начального хотя бы на 300), "aggression", "combination", "sacrifice", "caution", "endgame": числа 0-100 во втором состоянии,
+   "trigger": одно из {"type":"move","move":номер своего хода 5–40} — после этого хода, {"type":"queen_lost"} — когда потерял ферзя, {"type":"material_down","points":на сколько очков отстал 2–10}, {"type":"cycle","every":через сколько своих ходов 2–6} — меняется туда и обратно,
+   "startNote": "каков он в начале, от второго лица: «ты исправен и считаешь варианты»",
+   "shiftNote": "каким становится, от второго лица: «ты перегрелся и ходишь наугад»"}
+  Когда и почему сила меняется, обязательно опиши в "shortDescription" или "style" — игрок узнаёт об этом из карточки.
   Все текстовые поля — ${AI_LANGUAGE}. Придумай образ ярко и с характером. 
   Если дано известное имя, опирайся на известные о нём черты и адаптируй их под шахматный стиль и манеру речи.
   Имя и коронные фразы персонажа пиши так, как они звучат в официальном переводе или дубляже на этот язык (Джек Воробей и его «смекаешь?», а не «савви»), без иностранных слов, записанных русскими буквами.
@@ -408,7 +474,7 @@ function normalizeCharacterProfile(p, input) {
   // Карточка показывает ровно те дебюты, которые персонаж разыгрывает по книге
   const ids = [p.white, ...(Array.isArray(p.defenses) ? p.defenses : [])];
   const repertoire = resolveCharacterRepertoire(ids, p.openings);
-  return {
+  const profile = {
     repertoire,
     name,
     shortDescription: String(p.shortDescription || '').trim().slice(0, 180) || t('Загадочный противник со своим стилем игры.'),
@@ -425,6 +491,39 @@ function normalizeCharacterProfile(p, input) {
     tone: String(p.tone || '').trim().slice(0, 160) || t('Сдержанная, немногословная.'),
     persona: String(p.persona || '').trim().slice(0, 500),
   };
+  profile.shift = normalizeCharacterShift(p.shift, profile);
+  return profile;
+}
+
+/* ---- Персонаж с двумя состояниями ----
+   shift — второе состояние: другой Elo и черты, условие перехода и две
+   фразы для нейросети (какой персонаж в начале и каким становится).
+   Условия: move — после N-го своего хода (разово), queen_lost — потерял
+   ферзя (разово), material_down — отстал в материале на N очков (разово),
+   cycle — каждые N своих ходов меняется туда и обратно. О разовой смене
+   персонаж пишет в чат; Elo во время партии не показывается. */
+const SHIFT_TRAITS = ['aggression', 'combination', 'sacrifice', 'caution', 'endgame'];
+const SHIFT_TRIGGERS = ['move', 'cycle', 'queen_lost', 'material_down'];
+const SHIFT_MIN_ELO_GAP = 150; // меньше — смена незаметна, это обычный персонаж
+function normalizeCharacterShift(s, base) {
+  if (!s || typeof s !== 'object' || !s.trigger || typeof s.trigger !== 'object') return null;
+  const type = SHIFT_TRIGGERS.includes(s.trigger.type) ? s.trigger.type : null;
+  if (!type) return null;
+  const num = (v, min, max, def) => {
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? clamp(n, min, max) : def;
+  };
+  const shift = { elo: num(s.elo, 400, 2900, base.elo) };
+  if (Math.abs(shift.elo - base.elo) < SHIFT_MIN_ELO_GAP) return null;
+  SHIFT_TRAITS.forEach((k) => { shift[k] = num(s[k], 0, 100, base[k]); });
+  const trigger = { type };
+  if (type === 'move') trigger.move = num(s.trigger.move, 3, 60, 20);
+  if (type === 'cycle') trigger.every = num(s.trigger.every, 1, 10, 3);
+  if (type === 'material_down') trigger.points = num(s.trigger.points, 2, 15, 3);
+  shift.trigger = trigger;
+  shift.startNote = String(s.startNote || '').trim().slice(0, 200);
+  shift.shiftNote = String(s.shiftNote || '').trim().slice(0, 200);
+  return shift;
 }
 
 // Персонажа по имени chat-proxy может отдать из базы уже созданных (если его
@@ -472,17 +571,43 @@ function eloDifficultyLabel(elo) {
   return t('гроссмейстер');
 }
 
-function charBarRow(label, value) {
+const traitColor = (pct) => `hsl(${pct * 1.2}, 80%, 50%)`;
+const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// next — значение черты во втором состоянии персонажа (если меняется).
+// Растёт: за сплошной полосой полупрозрачная до нового значения.
+// Падает: сплошная остаётся до стартового значения, а вырез показывает,
+// до куда она опустится.
+function charBarRow(label, value, next = null) {
   const pct = clamp(value, 0, 100);
-  const hue = pct * 1.2;
-  const color = `hsl(${hue}, 80%, 50%)`;
+  const changes = next != null && next !== pct;
+  const to = changes ? clamp(next, 0, 100) : pct;
+  const fill = `<span class="char-bar-fill" style="width:${pct}%; background:${traitColor(pct)};"></span>`;
+  const ghost = changes && to > pct
+    ? `<span class="char-bar-ghost" style="width:${to}%; background:${traitColor(to)};"></span>` : '';
+  const notch = changes && to < pct ? `<span class="char-bar-notch" style="left:${to}%;"></span>` : '';
+  const nowLabel = traitLevelLabel(pct);
+  const nextLabel = traitLevelLabel(to);
+  const valueHtml = changes && nextLabel !== nowLabel
+    ? `${nowLabel}<span class="char-bar-value-next">→ ${nextLabel}</span>` : nowLabel;
   return `<div class="char-bar-row">
     <span class="char-bar-label">${escapeHtml(label)}</span>
-    <span class="char-bar-track" title="${pct}/100">
-      <span class="char-bar-fill" style="width:${pct}%; height:100%; background:${color}; display:block;"></span>
-    </span>
-    <span class="char-bar-value">${traitLevelLabel(pct)}</span>
+    <span class="char-bar-track" title="${changes ? `${pct}/100 → ${to}/100` : `${pct}/100`}">${ghost}${fill}${notch}</span>
+    <span class="char-bar-value">${valueHtml}</span>
   </div>`;
+}
+
+// Сверху — сила, с которой персонаж начинает партию; снизу, бледнее, —
+// какой она может стать
+function renderCharacterElo(profile) {
+  const el = $id('charCardElo');
+  const now = `<span class="char-card-elo-now">${escapeHtml(capitalize(eloDifficultyLabel(profile.elo)))}<br>≈${profile.elo} Elo</span>`;
+  const sh = profile.shift;
+  el.classList.toggle('has-shift', !!sh);
+  if (!sh) { el.innerHTML = now; el.removeAttribute('title'); return; }
+  const arrow = sh.elo > profile.elo ? '↗' : '↘';
+  el.innerHTML = `${now}<span class="char-card-elo-next"><span aria-hidden="true">${arrow}</span> ${escapeHtml(capitalize(eloDifficultyLabel(sh.elo)))}<br>≈${sh.elo} Elo</span>`;
+  el.title = t('Сила персонажа меняется по ходу партии');
 }
 
 function renderCharacterCard(profile) {
@@ -491,14 +616,14 @@ function renderCharacterCard(profile) {
   $id('charCardRegenBtn').classList.toggle('hidden', !charState.lastInput);
   $id('charCardName').textContent = profile.name;
   $id('charCardDesc').textContent = profile.shortDescription;
-  const eloLabel = eloDifficultyLabel(profile.elo);
-  $id('charCardElo').textContent = `${eloLabel.charAt(0).toUpperCase()}${eloLabel.slice(1)}\n≈${profile.elo} Elo`;
+  renderCharacterElo(profile);
+  const sh = profile.shift || {};
   $id('charCardBars').innerHTML = [
-    charBarRow(t('Агрессия'), profile.aggression),
-    charBarRow(t('Тактика'), profile.combination),
-    charBarRow(t('Жертвы'), profile.sacrifice),
-    charBarRow(t('Осторожность'), profile.caution),
-    charBarRow(t('Эндшпиль'), profile.endgame),
+    charBarRow(t('Агрессия'), profile.aggression, sh.aggression),
+    charBarRow(t('Тактика'), profile.combination, sh.combination),
+    charBarRow(t('Жертвы'), profile.sacrifice, sh.sacrifice),
+    charBarRow(t('Осторожность'), profile.caution, sh.caution),
+    charBarRow(t('Эндшпиль'), profile.endgame, sh.endgame),
   ].join('');
   $id('charCardStyle').textContent = profile.style;
   $id('charCardTone').textContent = profile.openings ? t('Дебюты: {openings}', { openings: profile.openings }) : '';

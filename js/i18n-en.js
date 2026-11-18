@@ -67,6 +67,8 @@ const I18N_EN = {
   "Рейтинг": "Rating",
   "Рейтинг {elo}": "Rating {elo}",
   "≈{elo} Эло": "≈{elo} Elo",
+  "Вы играете против персонажа «{name}». Он ваш соперник за доской и не будет подсказывать вам ходы.": "You are playing against “{name}”. This character is your opponent and will not suggest moves to you.",
+  "Сила персонажа меняется по ходу партии": "This character's strength changes during the game",
   "уровень {level}": "level {level}",
   "Персонаж": "Character",
   "персонаж": "the character",

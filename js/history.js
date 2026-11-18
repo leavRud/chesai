@@ -106,7 +106,7 @@ function buildGameRecord({ reason, winner, summary }) {
     opponent: mode === 'characters' && state.character ? state.character.name.slice(0, 100)
       : mode === 'ai' ? 'Stockfish'
       : mode === 'online' ? (state.onlineOpponentName || t('Соперник')).slice(0, 100) : null,
-    opponent_elo: mode === 'characters' && state.character ? state.character.elo : (mode === 'ai' ? aiOpponentElo() : null),
+    opponent_elo: mode === 'characters' && state.character ? characterGameElo() : (mode === 'ai' ? aiOpponentElo() : null),
     skill_level: mode === 'ai' ? state.skillLevel : null,
     character: mode === 'characters' && state.character ? state.character : null,
     moves: Math.ceil(plies / 2),

@@ -505,7 +505,7 @@ function avg(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.len
 // рейтинг, у Stockfish — рейтинг выбранного уровня. У игрока — неизвестна.
 function knownSideElo(color) {
   if (state.mode === 'friend' || color === state.playerColor) return null;
-  if (state.mode === 'characters' && state.character) return state.character.elo;
+  if (state.mode === 'characters' && state.character) return characterGameElo();
   if (state.mode === 'ai') return aiOpponentElo();
   return null;
 }

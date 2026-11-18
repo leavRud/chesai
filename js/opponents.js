@@ -289,7 +289,7 @@ function humanMoveBonus(d, ctx) {
 // волнует) и по вкусу персонажа: агрессивные тянутся к взятиям и шахам,
 // любители жертв — к рискованным взятиям, осторожные — к рокировке.
 // Ход выбирается случайно пропорционально весу.
-function pickCharacterMove(fen, candidates, c = state.character) {
+function pickCharacterMove(fen, candidates, c = characterNow()) {
   const policy = characterMovePolicy(c);
   const topScore = choiceScore(candidates[0].score);
   // Подставили фигуру — лучший ход на 2+ пешки сильнее остальных. Чаще всего
@@ -387,6 +387,50 @@ async function waitThinkTime(startedAt, ms, fen, gameStartedAt) {
   return !state.isGameOver && gameStartedAt === state.gameStartedAt && state.game.fen() === fen;
 }
 
+/* ---- Персонаж с двумя состояниями (shift, см. characters.js) ----
+   state.characterPhase: 0 — исходное состояние, 1 — второе. */
+function characterNow(c = state.character) {
+  if (!c || !c.shift || !state.characterPhase) return c;
+  const { trigger, startNote, shiftNote, ...stats } = c.shift;
+  return { ...c, ...stats };
+}
+
+function setCharacterPhase(phase) {
+  if (state.characterPhase === phase) return;
+  state.characterPhase = phase;
+  state.skillLevel = eloToSkillLevel(characterNow().elo);
+}
+
+// Разовая смена ставит characterShiftAnnounce: персонаж скажет о ней в чат
+function updateCharacterShift(move, isUserMove) {
+  const sh = state.character && state.character.shift;
+  if (!sh || !state.game) return;
+  const own = state.game.history({ verbose: true }).filter(m => m.color === state.aiColor).length;
+  const tr = sh.trigger;
+  if (tr.type === 'cycle') {
+    setCharacterPhase(Math.floor(own / tr.every) % 2);
+    return;
+  }
+  if (state.characterPhase) return; // разовая смена уже была
+  let hit = false;
+  if (tr.type === 'move') hit = own >= tr.move;
+  else if (tr.type === 'queen_lost') hit = isUserMove && move.captured === 'q';
+  else if (tr.type === 'material_down') hit = characterMaterialDiff() <= -tr.points;
+  if (!hit) return;
+  setCharacterPhase(1);
+  state.characterShiftAnnounce = true;
+}
+
+// Сила соперника для рейтинга: у меняющегося персонажа — средний Elo по его
+// сыгранным ходам. Иначе его можно обыграть в слабой фазе и получить очки
+// как за сильную.
+function characterGameElo(c = state.character) {
+  if (!c) return null;
+  const log = state.characterEloLog;
+  if (!c.shift || !log || !log.length) return c.elo;
+  return Math.round(log.reduce((a, b) => a + b, 0) / log.length);
+}
+
 async function requestCharacterMove() {
   if (!state.game || state.isGameOver || state.game.turn() !== state.aiColor || !state.character) return;
   state.isThinking = true;
@@ -409,6 +453,7 @@ async function requestCharacterMove() {
     const bookMove = state.game.move(bookSan, { sloppy: true });
     if (bookMove) {
       state.lastMoveFlavor = null;
+      state.characterEloLog.push(characterNow().elo);
       state.fenHistory.push(state.game.fen());
       onMoveMade(bookMove, false);
       state.isThinking = false;
@@ -424,7 +469,7 @@ async function requestCharacterMove() {
   if (clockEnabled() && clockLeft < 20) movetime = Math.min(movetime, 250);
   showEngineLoadingStatus();
   await waitForEngine(3000);
-  const { multipv } = characterMovePolicy(state.character);
+  const { multipv } = characterMovePolicy(characterNow());
   const candidates = await searchTopMoves(fen, { movetime, multipv });
 
   let moveObj = null;
@@ -450,6 +495,7 @@ async function requestCharacterMove() {
 
   if (moveObj) {
     detectCharacterMoveFlavor(chosenScore, topScore, moveObj);
+    state.characterEloLog.push(characterNow().elo);
     state.fenHistory.push(state.game.fen());
     onMoveMade(moveObj, false);
   }
@@ -470,6 +516,13 @@ async function requestCharacterMove() {
 // forDrawDecision — промпт для решения о ничьей (draws.js): там собеседник уже
 // нажал кнопку, и правило «в чате ничью не принимай, жми кнопку» сбивало
 // персонажа — он отвечал «хочешь ничью, жми кнопку».
+function characterStateNote(c) {
+  const note = state.characterPhase
+    ? (c.shift.shiftNote || 'ты играешь уже не так, как в начале партии.')
+    : (c.shift.startNote || 'ты в своей обычной форме.');
+  return /[.!?…]$/.test(note) ? note : `${note}.`;
+}
+
 function buildCharacterPersonaPrompt({ forDrawDecision = false } = {}) {
   const c = state.character;
   const acc = typeof getAccount === 'function' ? getAccount() : null;
@@ -477,7 +530,7 @@ function buildCharacterPersonaPrompt({ forDrawDecision = false } = {}) {
   return `Ты — ${c.name}. ${c.shortDescription}
 Прямо сейчас ты сидишь за шахматной доской напротив человека, играешь с ним партию и переговариваешься. Он и есть твой соперник; дальше он называется «собеседник».${playerName ? ` Его настоящее имя — ${playerName}.` : ''} Кроме вас двоих здесь никого нет. Ты живая личность со своим характером, юмором и настроением, а не бот.
 Как ты играешь: ${c.style}
-Как ты говоришь: ${c.tone}${c.persona ? `\nО тебе: ${c.persona}` : ''}
+Как ты говоришь: ${c.tone}${c.persona ? `\nО тебе: ${c.persona}` : ''}${c.shift ? `\nТвоё состояние сейчас: ${characterStateNote(c)} Веди себя и отвечай в этом состоянии. Не называй цифры рейтинга и силы игры.` : ''}
 
 Правила:
 - Всегда говори прямо с собеседником, лицом к лицу: «ты» или «вы» — как принято у твоего персонажа. Никогда не говори о нём в третьем лице («этот твой противник», «мой соперник», «он») и не обращайся к кому-то третьему — зрителям, ведущему, помощнику.
@@ -496,6 +549,17 @@ ${forDrawDecision ? '' : '- Ничью официально предлагают
 // Короткая сводка партии для пометок [Фон: …]: цвет, номер хода, последние
 // ходы и материал. Без FEN — модели нужен смысл, а не координаты.
 const PIECE_VALUES = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+// Материал персонажа минус материал игрока, в пешках
+function characterMaterialDiff() {
+  let diff = 0;
+  for (const row of state.game.board()) {
+    for (const sq of row) {
+      if (sq) diff += (sq.color === state.aiColor ? 1 : -1) * PIECE_VALUES[sq.type];
+    }
+  }
+  return diff;
+}
+
 function describeGameForCharacter() {
   const game = state.game;
   const history = game.history({ verbose: true });
@@ -505,16 +569,7 @@ function describeGameForCharacter() {
   const recent = history.slice(-4)
     .map((mv) => `${mv.color === state.aiColor ? 'ты' : 'собеседник'} ${mv.san} (${aiDescribeMove(mv)})`)
     .join('; ');
-  let mine = 0;
-  let theirs = 0;
-  for (const row of game.board()) {
-    for (const sq of row) {
-      if (!sq) continue;
-      if (sq.color === state.aiColor) mine += PIECE_VALUES[sq.type];
-      else theirs += PIECE_VALUES[sq.type];
-    }
-  }
-  const diff = mine - theirs;
+  const diff = characterMaterialDiff();
   const material = diff === 0 ? 'материал равный'
     : diff > 0 ? `у тебя больше материала на ${diff}` : `у собеседника больше материала на ${-diff}`;
   const turn = game.turn() === state.aiColor ? 'сейчас твой ход' : 'сейчас ход собеседника';
@@ -578,6 +633,7 @@ async function characterReact(context, isAuto = false) {
 function triggerCharacterEvents(move, isUserMove) {
   if (state.mode !== 'characters' || !state.character) return;
   state.pliesSinceCharacterSpoke++;
+  updateCharacterShift(move, isUserMove);
   const flavor = state.lastMoveFlavor;
   state.lastMoveFlavor = null;
   const game = state.game;
@@ -587,6 +643,13 @@ function triggerCharacterEvents(move, isUserMove) {
   // Игрок ждёт ответа на свой вопрос — не перебиваем его самостоятельной
   // репликой, иначе в чате окажутся два ответа подряд.
   if (state.isAsking || state.characterTyping) return;
+  // Персонаж только что сменил состояние — говорит об этом без оглядки на
+  // паузу между репликами. Занят — скажет после следующего хода.
+  if (state.characterShiftAnnounce && !state.autoReplyPending) {
+    state.characterShiftAnnounce = false;
+    characterReact(`с тобой только что произошла перемена: ${characterStateNote(state.character)} Скажи об этом собеседнику в своём образе, коротко и без цифр рейтинга.`, true);
+    return;
+  }
   // Не чаще раза в CHARACTER_REPLY_COOLDOWN_MS
   const isBusy = state.autoReplyPending || Date.now() - state.lastAutoReplyTime < CHARACTER_REPLY_COOLDOWN_MS;
   if (isBusy) return;

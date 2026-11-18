@@ -61,6 +61,9 @@ function initGame() {
   state.lastAutoReplies = [];
   state.autoReplyPending = false;
   state.pliesSinceCharacterSpoke = 0;
+  state.characterPhase = 0;
+  state.characterEloLog = [];
+  state.characterShiftAnnounce = false;
   setCharacterTyping(false);
 
   // Новая партия — старый кэш анализа больше не актуален
@@ -106,7 +109,10 @@ function initGame() {
     $id('modeLabel').textContent = t('Против персонажа: {name} · вы играете {color}', { name: state.character.name, color: playerColorName });
     $id('chatTitle').textContent = t('Разговор с соперником — {name}', { name: state.character.name });
     $id('chatHint').textContent = t('{name} — ваш соперник и не даёт подсказок по ходам', { name: state.character.name });
-    logSystemChat(t('Вы играете против персонажа «{name}» (≈{elo} Elo). Он ваш соперник за доской и не будет подсказывать вам ходы.', { name: state.character.name, elo: state.character.elo }));
+    // У меняющегося персонажа сила во время партии не показывается
+    logSystemChat(state.character.shift
+      ? t('Вы играете против персонажа «{name}». Он ваш соперник за доской и не будет подсказывать вам ходы.', { name: state.character.name })
+      : t('Вы играете против персонажа «{name}» (≈{elo} Elo). Он ваш соперник за доской и не будет подсказывать вам ходы.', { name: state.character.name, elo: state.character.elo }));
     characterReact('партия только начинается. Поздоровайся с собеседником в своём образе.', true);
   } else if (state.mode === 'online') {
     $id('modeLabel').textContent = t('Партия с другом по ссылке · вы играете {color}', { color: playerColorName });
@@ -395,7 +401,7 @@ function renderPlayerBars() {
       return { king, name: acc?.name || t('Вы'), meta: acc ? t('Рейтинг {elo}', { elo: acc.elo ?? 1200 }) : t('Гость'), own: true };
     }
     if (state.mode === 'characters' && state.character) {
-      return { king, name: state.character.name, meta: t('≈{elo} Эло', { elo: state.character.elo }) };
+      return { king, name: state.character.name, meta: state.character.shift ? t('Персонаж') : t('≈{elo} Эло', { elo: state.character.elo }) };
     }
     const label = aiLevelLabel();
     return { king, name: 'Stockfish', meta: label[0].toUpperCase() + label.slice(1) };
@@ -548,7 +554,7 @@ function reportAchievementGameEnd(outcome, extra = {}) {
     outcome,
     mode: state.mode,
     skillLevel: state.skillLevel,
-    characterElo: state.character ? state.character.elo : null,
+    characterElo: state.character ? characterGameElo() : null,
     checkmate: !!(game && game.in_checkmate()),
     stalemate: !!(game && game.in_stalemate()),
     threefold: !!(game && game.in_threefold_repetition()),
