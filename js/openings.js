@@ -4,8 +4,9 @@
 // ровно их, а в партии персонаж разыгрывает их по вариантам, пока соперник не
 // свернёт с теории. Варианты — ходы обеих сторон от начальной позиции: если
 // сыгранные ходы совпали с началом варианта, следующий ход берём оттуда.
-// Ходы проверяет validateOpeningBook() при загрузке — ошибка в книге обрежет
-// вариант, а не заставит персонажа сделать невозможный ход.
+// Ходы проверяет chess.js (checkOpeningLine, лениво и в свободное время — см.
+// конец файла): ошибка в книге обрежет вариант, а не заставит персонажа сделать
+// невозможный ход.
 'use strict';
 
 const OPENING_BOOK = {
@@ -750,21 +751,60 @@ const OPENING_DEFAULTS = { w: 'w-italian', e4: 'open-e5', d4: 'qgd' };
 
 const stripSanMarks = (san) => san.replace(/[+#!?]/g, '');
 
-function validateOpeningBook() {
-  for (const opening of Object.values(OPENING_BOOK)) {
-    opening.lines = opening.lines.map((line) => {
-      const game = new Chess();
-      const moves = [];
-      for (const san of line.split(' ')) {
-        const move = game.move(san, { sloppy: true });
-        if (!move) { console.warn('Дебютная книга: неверный ход', san, 'в варианте', line); break; }
-        moves.push(stripSanMarks(move.san));
-      }
-      return moves;
-    }).filter(moves => moves.length);
+// Проверка ходов через chess.js дорогая: ~0,5 мс на ход, а в книге ~4700 ходов —
+// больше двух секунд. При загрузке страницы её делать нельзя: всё это время
+// главный поток занят, кони на заставке стоят, кнопки не нажимаются. Поэтому
+// opening.lines — ленивое свойство: дебют проверяется при первом обращении,
+// а в свободное время браузер заранее, понемногу, проверяет всю книгу.
+function checkOpeningLine(line) {
+  const game = new Chess();
+  const moves = [];
+  for (const san of line.split(' ')) {
+    const move = game.move(san, { sloppy: true });
+    if (!move) { console.warn('Дебютная книга: неверный ход', san, 'в варианте', line); break; }
+    moves.push(stripSanMarks(move.san));
   }
+  return moves;
 }
-validateOpeningBook();
+
+const openingBookChecks = Object.values(OPENING_BOOK).map((opening) => {
+  const check = { raw: opening.lines, next: 0, lines: [] };
+  // Проверить ещё один вариант; false — дебют проверен целиком
+  check.step = () => {
+    if (check.next >= check.raw.length) return false;
+    const moves = checkOpeningLine(check.raw[check.next++]);
+    if (moves.length) check.lines.push(moves);
+    return true;
+  };
+  Object.defineProperty(opening, 'lines', {
+    get() {
+      while (check.step()) { /* дочитываем то, что не успели в фоне */ }
+      return check.lines;
+    },
+    enumerable: true,
+  });
+  return check;
+});
+
+(function checkOpeningBookWhenIdle() {
+  const idle = window.requestIdleCallback
+    ? (cb) => window.requestIdleCallback(cb, { timeout: 2000 })
+    : (cb) => setTimeout(() => cb({ timeRemaining: () => 8, didTimeout: false }), 50); // Safari
+  // Анимации главного экрана почти не оставляют простоя, и колбэк чаще всего
+  // приходит по timeout. Тогда работаем не дольше IDLE_SLICE_MS — кадр не заметит.
+  const IDLE_SLICE_MS = 8;
+  let index = 0;
+  const work = (deadline) => {
+    const until = performance.now() + IDLE_SLICE_MS;
+    const hasTime = () => (deadline.didTimeout ? performance.now() < until : deadline.timeRemaining() > 2);
+    while (index < openingBookChecks.length && hasTime()) {
+      if (!openingBookChecks[index].step()) index++;
+    }
+    if (index < openingBookChecks.length) idle(work);
+  };
+  // После загрузки страницы: заставке и первому экрану главный поток нужнее
+  window.addEventListener('load', () => idle(work), { once: true });
+})();
 
 function openingName(id) {
   const opening = OPENING_BOOK[id];

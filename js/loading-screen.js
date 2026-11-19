@@ -11,6 +11,8 @@
 const loadingReadyFlags = { fonts: false, windowLoad: false, background: false };
 /** Самое долгое время показа заставки, мс (отсчёт с запуска этого скрипта). */
 const LOADING_SCREEN_MAX_MS = 4000;
+/** Сколько ещё ждём ускоренную досадку коней, прежде чем убрать заставку как есть, мс. */
+const LOADING_SCREEN_HURRY_LIMIT_MS = 3000;
 let loadingScreenHidden = false;
 
 function markLoadingReady(flag) {
@@ -48,16 +50,28 @@ function hideLoadingScreen() {
 
   loadingBackgroundReady.then(() => markLoadingReady('background'));
 
-  // Страховка: кони ходят по таймеру, а в фоновой вкладке и у поисковых ботов
-  // таймеры замедляются — тогда кольцо собирается минутами. Дольше
-  // LOADING_SCREEN_MAX_MS заставку не держим, даже если кольцо, шрифты или
-  // картинки не дождались. Но скрипты приложения должны выполниться: без них
-  // кнопки главного экрана не работают — тогда ждём ещё DOMContentLoaded.
+  // Страховка: кони ходят по таймеру, а пока браузер выполняет тяжёлые скрипты
+  // (и тем более в фоновой вкладке или у поискового бота) таймеры тормозят —
+  // кольцо собиралось бы долго. Через LOADING_SCREEN_MAX_MS шрифты и картинки
+  // больше не ждём, а кольцо быстро досаживаем (hurryLoadingSwarm). Скрипты
+  // приложения должны выполниться: без них кнопки главного экрана не работают —
+  // поэтому ещё ждём DOMContentLoaded.
   setTimeout(() => {
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', hideLoadingScreen, { once: true });
+      document.addEventListener('DOMContentLoaded', stopWaitingForLoading, { once: true });
     } else {
-      hideLoadingScreen();
+      stopWaitingForLoading();
     }
   }, LOADING_SCREEN_MAX_MS);
 })();
+
+function stopWaitingForLoading() {
+  // Никто не смотрит (вкладка в фоне) — досматривать анимацию некому
+  if (document.hidden) { hideLoadingScreen(); return; }
+  loadingReadyFlags.fonts = true;
+  loadingReadyFlags.windowLoad = true;
+  hurryLoadingSwarm();
+  maybeHideLoadingScreen();
+  // Последний рубеж: если и ускоренные таймеры стоят — убираем заставку как есть
+  setTimeout(hideLoadingScreen, LOADING_SCREEN_HURRY_LIMIT_MS);
+}

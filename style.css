@@ -4473,3 +4473,29 @@ html.dark .tour-spot { box-shadow: 0 0 0 2px var(--accent), 0 0 0 9999px rgba(0,
 .tour-back + .tour-next { margin-left: 0; }
 
 .tour-layer.no-motion, .tour-layer.no-motion .tour-spot, .tour-layer.no-motion .tour-card { transition: none; }
+
+/* Приветствие новичка — крупнее остальных шагов: конь, большой заголовок, текст по центру */
+.tour-card.is-hero {
+  width: min(480px, calc(100vw - 32px));
+  padding: 22px 32px 28px;
+  text-align: center;
+  border-radius: var(--radius-lg);
+}
+.tour-hero {
+  display: block;
+  width: min(220px, 60%);
+  height: auto;
+  margin: 0 auto 6px;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.35));
+}
+.tour-card.is-hero .tour-head { margin-bottom: -8px; }
+.tour-card.is-hero .tour-title { font-size: 30px; line-height: 1.2; margin-bottom: 12px; text-align: center; }
+.tour-card.is-hero .tour-body { font-size: 16px; line-height: 1.55; color: var(--text-muted); max-width: 36ch; margin: 0 auto; }
+.tour-card.is-hero .tour-actions { justify-content: center; gap: 12px; margin-top: 24px; }
+.tour-card.is-hero .tour-actions .btn { padding: 12px 24px; font-size: 15px; min-width: 140px; }
+.tour-card.is-hero .tour-skip { margin-right: 0; }
+@media (max-width: 420px) {
+  .tour-card.is-hero { padding: 18px 20px 22px; }
+  .tour-card.is-hero .tour-title { font-size: 25px; }
+  .tour-card.is-hero .tour-actions .btn { min-width: 0; flex: 1; }
+}

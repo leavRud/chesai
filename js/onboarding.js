@@ -33,13 +33,17 @@ function markTourSeen(name) {
   try { localStorage.setItem(TOUR_SEEN_KEYS[name], '1'); } catch (e) { /* без хранилища покажется снова */ }
 }
 
-// Те, кто заходил раньше, уже знают сайт: отмечаем оба тура пройденными
+// Те, кто заходил раньше, уже знают сайт: отмечаем оба тура пройденными.
+// Решение принимается один раз, при самом первом заходе: новичку ставим '0'
+// («ещё не видел»). Иначе он стал бы «старым», перезагрузив страницу до показа
+// тура или поймав фигуру на фоне главного экрана (это пишет достижение).
 (function skipToursForReturningVisitors() {
   try {
     if (localStorage.getItem(TOUR_SEEN_KEYS.home) !== null) return;
     const returning = RETURNING_VISITOR_KEYS.some(k => localStorage.getItem(k) !== null) ||
       Object.keys(localStorage).some(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
     if (returning) { markTourSeen('home'); markTourSeen('game'); }
+    else localStorage.setItem(TOUR_SEEN_KEYS.home, '0');
   } catch (e) { /* хранилище недоступно — tourSeen вернёт true, тур не покажется */ }
 })();
 
@@ -59,6 +63,7 @@ function anyModalOpen() {
 function homeTourSteps() {
   return [
     {
+      hero: true, // крупное окно с конём — первое, что видит новичок
       title: t('Добро пожаловать в chesai'),
       text: t('Шахматы с компьютером, с другом и с персонажами, которых играет нейросеть. Покажем за полминуты, что где.'),
       next: t('Показать'),
@@ -134,6 +139,7 @@ function startTour(steps, onDone) {
   layer.innerHTML = '<div class="tour-spot" aria-hidden="true"></div>' +
     '<div class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tourTitle" aria-describedby="tourBody">' +
     '<div class="tour-head"><span class="tour-count"></span><button type="button" class="tour-close" aria-label="' + escapeHtml(t('Закрыть подсказки')) + '">✕</button></div>' +
+    '<img class="tour-hero hidden" alt="" width="512" height="341">' +
     '<div class="h2 tour-title" id="tourTitle"></div><div class="tour-body" id="tourBody"></div>' +
     '<div class="tour-actions"><button type="button" class="btn btn-ghost btn-sm tour-skip"></button>' +
     '<button type="button" class="btn btn-ghost btn-sm tour-back"></button>' +
@@ -145,6 +151,7 @@ function startTour(steps, onDone) {
     card: layer.querySelector('.tour-card'),
     count: layer.querySelector('.tour-count'),
     title: layer.querySelector('.tour-title'),
+    hero: layer.querySelector('.tour-hero'),
     body: layer.querySelector('.tour-body'),
     skip: layer.querySelector('.tour-skip'),
     back: layer.querySelector('.tour-back'),
@@ -184,6 +191,13 @@ function goToTourStep(index) {
   const { els } = tour;
   const last = index === tour.steps.length - 1;
 
+  // Крупное приветствие: конь в цвете акцента, как на главном экране
+  els.card.classList.toggle('is-hero', Boolean(step.hero));
+  els.hero.classList.toggle('hidden', !step.hero);
+  if (step.hero && !els.hero.getAttribute('src')) {
+    els.hero.addEventListener('load', scheduleTourLayout, { once: true });
+    els.hero.src = window.__homeKnightSrc || 'assests/knight.webp';
+  }
   els.title.textContent = step.title;
   els.body.replaceChildren();
   if (step.text) {

@@ -157,6 +157,35 @@ function stepLoadingSwarm() {
   }
 }
 
+// Заставку пора убирать (см. LOADING_SCREEN_MAX_MS в js/loading-screen.js), а
+// кольцо не собрано: прыжки тормозят, пока браузер выполняет тяжёлые скрипты.
+// Не обрываем анимацию, а досаживаем коней по очереди: каждые
+// LOADING_SWARM_HURRY_MS следующий по кругу встаёт на место плавным перелётом,
+// остальные продолжают прыгать. 12 коней — не больше полутора секунд.
+const LOADING_SWARM_HURRY_MS = 110;
+function hurryLoadingSwarm() {
+  const swarm = loadingSwarm;
+  if (!swarm || swarm.hurried || swarm.knights.every(knight => knight.arrived)) return;
+  swarm.hurried = true;
+  clearInterval(swarm.timer);
+  swarm.timer = setInterval(() => {
+    const next = swarm.knights.find(knight => !knight.arrived);
+    if (next) {
+      Object.assign(next, { row: next.goalRow, col: next.goalCol, arrived: true });
+      next.el.style.transitionDuration = '0.3s';
+      next.el.classList.add('is-lit');
+      placeLoadingKnight(next);
+    }
+    swarm.knights.forEach(knight => {
+      if (!knight.arrived && hopLoadingKnight(knight, false)) placeLoadingKnight(knight);
+    });
+    if (swarm.knights.every(knight => knight.arrived)) {
+      clearInterval(swarm.timer);
+      resolveLoadingBackground();
+    }
+  }, LOADING_SWARM_HURRY_MS);
+}
+
 function resizeLoadingSwarm() {
   if (!loadingSwarm) return;
   loadingSwarm.grid = computeHomeGrid(loadingSwarm.layer, '.loading-board-bg');
