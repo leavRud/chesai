@@ -174,6 +174,8 @@ function renderProfileStreak() {
 // Партия сохранилась в аккаунт: первая за день продлевает серию — хвалим один раз в день.
 async function onGameSavedForStreak() {
   const s = await fetchPlayStreak();
+  // Достижения «N дней подряд»: серия аккаунта учитывает и другие устройства
+  if (s) window.Achievements?.track('dayStreak', { streak: s.streak, playedToday: s.played_today });
   if (!s || s.streak < 2) return;
   const today = new Date().toLocaleDateString('sv-SE');
   try {

@@ -243,10 +243,28 @@ function switchAchievementsUser(userId) {
   }, 0);
 }
 
+// Цель Метрики «новый аккаунт» — любым способом: почта, Google, VK, вход внутри VK.
+// signup срабатывает только для почты и ещё до подтверждения письма, а после
+// входа через Google/VK страница перезагружается — там цели не было вовсе.
+// Считаем аккаунт новым, если он создан меньше получаса назад; один раз на аккаунт.
+const NEW_ACCOUNT_WINDOW_MS = 30 * 60 * 1000;
+function trackAccountCreated(session) {
+  const user = session?.user;
+  const created = Date.parse(user?.created_at || '');
+  if (!user || !Number.isFinite(created) || Date.now() - created > NEW_ACCOUNT_WINDOW_MS) return;
+  const key = `chess_goalAccount_${user.id}`;
+  try {
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, '1');
+  } catch (e) { return; } // без хранилища цель задвоилась бы при каждой загрузке
+  trackGoal('account_created', { method: user.app_metadata?.provider || 'email' });
+}
+
 // Проверка текущей сессии Supabase при загрузке страницы + подписка на её изменения
 async function initSupabaseSession() {
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
+    trackAccountCreated(session);
     switchAchievementsUser(session.user.id);
     await fetchProfileFromSupabase(session.user.id);
     renderMenuProfile();
@@ -259,6 +277,7 @@ async function initSupabaseSession() {
   sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'PASSWORD_RECOVERY') openResetPasswordForm();
     if ((event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && session) {
+      trackAccountCreated(session);
       switchAchievementsUser(session.user.id);
       await fetchProfileFromSupabase(session.user.id);
     } else if (event === 'SIGNED_OUT') {

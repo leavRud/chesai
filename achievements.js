@@ -46,6 +46,9 @@ const Achievements = (function () {
         modesPlayed: [],        // какие режимы игры уже пробовали
         checkTypesGiven: [],    // какими типами фигур игрок уже давал шах (по всем партиям)
         homeEnemiesKilled: 0,   // сколько вражеских фигур убито на главном экране
+        lastPlayDay: '',        // последний день с доигранной партией, ГГГГ-ММ-ДД по местному времени
+        dayStreak: 0,           // дней подряд с доигранной партией, считая lastPlayDay
+        bestDayStreak: 0,       // лучшая серия дней (с сервера — по всем устройствам)
       },
     };
   }
@@ -84,6 +87,8 @@ const Achievements = (function () {
     const s = data.stats, g = guest.stats;
     ['gamesPlayed', 'winsTotal', 'analysesCount', 'homeEnemiesKilled'].forEach((k) => { s[k] += g[k]; });
     s.bestWinStreak = Math.max(s.bestWinStreak, g.bestWinStreak);
+    s.bestDayStreak = Math.max(s.bestDayStreak || 0, g.bestDayStreak || 0);
+    if ((g.lastPlayDay || '') > (s.lastPlayDay || '')) { s.lastPlayDay = g.lastPlayDay; s.dayStreak = g.dayStreak; }
     ['charactersPlayed', 'modesPlayed', 'checkTypesGiven'].forEach((k) => {
       s[k] = Array.from(new Set(s[k].concat(g[k])));
     });
@@ -277,6 +282,19 @@ const Achievements = (function () {
     { id: 'legend_1000', category: 'progress', icon: 'crown', reward: 25, name: 'Легенда', desc: 'Сыграть 1000 партий.',
       events: ['gameStart'], progress: s => ({ current: s.gamesPlayed, goal: 1000 }),
       check: ({ stats }) => stats.gamesPlayed >= 1000 },
+    // Серия дней: день засчитывается, когда в нём доиграна партия (см. notePlayDay)
+    { id: 'day_streak_3', category: 'progress', icon: 'calendar', reward: 2, name: 'Три дня подряд', desc: 'Играть 3 дня подряд.',
+      events: ['gameEnd', 'dayStreak'], progress: s => ({ current: activeDayStreak(s), goal: 3 }),
+      check: ({ stats }) => stats.bestDayStreak >= 3 },
+    { id: 'day_streak_7', category: 'progress', icon: 'calendar-check', reward: 5, name: 'Неделя без пропусков', desc: 'Играть 7 дней подряд.',
+      events: ['gameEnd', 'dayStreak'], progress: s => ({ current: activeDayStreak(s), goal: 7 }),
+      check: ({ stats }) => stats.bestDayStreak >= 7 },
+    { id: 'day_streak_30', category: 'progress', icon: 'flame', reward: 10, name: 'Месяц за доской', desc: 'Играть 30 дней подряд.',
+      events: ['gameEnd', 'dayStreak'], progress: s => ({ current: activeDayStreak(s), goal: 30 }),
+      check: ({ stats }) => stats.bestDayStreak >= 30 },
+    { id: 'day_streak_100', category: 'progress', icon: 'star', reward: 25, name: 'Сто дней', desc: 'Играть 100 дней подряд.',
+      events: ['gameEnd', 'dayStreak'], progress: s => ({ current: activeDayStreak(s), goal: 100 }),
+      check: ({ stats }) => stats.bestDayStreak >= 100 },
 
     // ===== Победы =====
     { id: 'first_win', category: 'wins', icon: 'trophy', reward: 2, name: 'Первая победа', desc: 'Выиграть первую партию.',
@@ -648,6 +666,18 @@ const Achievements = (function () {
         saveData();
         break;
       }
+      // Серия дней с сервера (js/push.js) — учитывает партии с других устройств
+      case 'dayStreak': {
+        const streak = Number(payload.streak) || 0;
+        const s = data.stats;
+        s.bestDayStreak = Math.max(s.bestDayStreak || 0, streak);
+        if (payload.playedToday && streak > (s.lastPlayDay === localDay() ? s.dayStreak || 0 : 0)) {
+          s.dayStreak = streak;
+          s.lastPlayDay = localDay();
+        }
+        saveData();
+        break;
+      }
       case 'homeEnemyKill': {
         data.stats.homeEnemiesKilled = (data.stats.homeEnemiesKilled || 0) + 1;
         saveData();
@@ -759,7 +789,28 @@ const Achievements = (function () {
     }
   }
 
+  // ГГГГ-ММ-ДД по местному времени — как серия в профиле (её считает сервер по часовому поясу игрока)
+  function localDay(d = new Date()) { return d.toLocaleDateString('sv-SE'); }
+  function yesterdayDay() {
+    const now = new Date();
+    return localDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+  }
+  // Доиграна партия: первая за день продлевает серию, если вчера тоже играли, иначе серия с 1
+  function notePlayDay() {
+    const s = data.stats;
+    const today = localDay();
+    if (s.lastPlayDay === today) return;
+    s.dayStreak = s.lastPlayDay === yesterdayDay() ? (s.dayStreak || 0) + 1 : 1;
+    s.lastPlayDay = today;
+    s.bestDayStreak = Math.max(s.bestDayStreak || 0, s.dayStreak);
+  }
+  // Текущая серия для прогресс-бара: пропущен вчерашний день — серии уже нет
+  function activeDayStreak(s) {
+    return s.lastPlayDay === localDay() || s.lastPlayDay === yesterdayDay() ? (s.dayStreak || 0) : 0;
+  }
+
   function handleGameEnd(payload) {
+    notePlayDay();
     const elapsedMs = session.startTime ? Date.now() - session.startTime : null;
     payload.elapsedMs = elapsedMs;
     payload.totalFullMoves = payload.totalFullMoves != null ? payload.totalFullMoves : Math.ceil(session.moveCount / 2);

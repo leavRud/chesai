@@ -394,7 +394,11 @@ async function runCharacterGeneration(input, { fresh = false } = {}) {
     setCharCardLoading(false);
     $id('characterCardBody').classList.add('hidden');
     const errEl = $id('charCardError');
-    errEl.textContent = t('Не удалось создать персонажа: {error}. Нажмите «Перегенерировать», чтобы попробовать снова.', { error: error.message });
+    // Дневные пределы — понятным текстом: «Перегенерировать» тут не поможет
+    const limitCodes = ['CHARACTER_LIMIT_REACHED', 'SITE_LIMIT_REACHED', 'GAME_LIMIT_REACHED'];
+    errEl.textContent = limitCodes.includes(error.code)
+      ? chatErrorMessage(error)
+      : t('Не удалось создать персонажа: {error}. Нажмите «Перегенерировать», чтобы попробовать снова.', { error: error.message });
     errEl.classList.remove('hidden');
     playSound('error');
   }
