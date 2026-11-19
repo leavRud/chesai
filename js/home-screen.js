@@ -12,6 +12,7 @@ function showHomeScreen() {
   hideModal('characterCardModal');
   initHomeFigures();
   placeModePill();
+  scheduleHomeTour(); // подсказки для новичков: если в первый раз не вышло (открыта модалка), покажем сейчас
 }
 function hideHomeScreen() {
   $id('homeScreen').classList.add('hidden');
@@ -51,7 +52,7 @@ function springModePill() {
   const { top, height, left, width } = getComputedStyle(pill);
   pill.getAnimations().forEach(animation => animation.cancel());
   placeModePill();
-  const smooth = !MODE_PILL_REDUCED_MOTION.matches && !document.documentElement.classList.contains('perf-low');
+  const smooth = !MODE_PILL_REDUCED_MOTION.matches && !document.documentElement.classList.contains('lite');
   if (!smooth) return;
   pill.animate([
     { top, height, left, width },

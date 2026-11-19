@@ -10,12 +10,10 @@ const charState = {
 };
 
 // keepTab — остаться на той вкладке, с которой ушли (возврат с карточки персонажа)
+// Гость тоже открывает это окно: придумывает персонажа или выбирает готового.
+// Войти просим в последний момент — на «Создать персонажа» (тут нужна нейросеть)
+// или на «Играть» в карточке; после входа всё продолжается само (js/share.js).
 function openCharacterSetup({ keepTab = false } = {}) {
-  // Персонажей ведёт нейросеть, а она доступна только после входа.
-  if (!chatSignedIn) {
-    openAuthModal(t('Войдите, чтобы играть против персонажей: ими управляет нейросеть'));
-    return;
-  }
   hideModal('characterCardModal');
   $id('charSetupError').classList.add('hidden');
   renderPresetCharacters();
@@ -275,6 +273,14 @@ $id('charCreateBtn').addEventListener('click', () => {
     }
     input = { type: 'desc', value };
   }
+  // Создаёт персонажа нейросеть — гостя просим войти, после входа создание продолжится
+  if (!chatSignedIn) {
+    rememberPendingCharacterCreate(input);
+    openAuthModal(input.type === 'name'
+      ? t('Войдите, и нейросеть создаст персонажа «{name}»', { name: input.value })
+      : t('Войдите, и нейросеть создаст вашего персонажа'));
+    return;
+  }
   charState.lastInput = input;
   charState.fromLink = false;
   hideModal('characterSetupModal');
@@ -321,9 +327,10 @@ document.querySelectorAll('#charColorRow .color-choice-btn').forEach(btn => {
 
 $id('charCardPlayBtn').addEventListener('click', () => {
   if (!state.character) return;
-  // Гость открыл персонажа по ссылке: играть можно после входа, затем карточка откроется снова
+  // Гость выбрал или открыл по ссылке персонажа: играть можно после входа, затем партия начнётся сама
   if (!chatSignedIn) {
     rememberPendingSharedCharacter();
+    trackGoal('character_play_login');
     openAuthModal(t('Войдите, чтобы сыграть с персонажем «{name}»: им управляет нейросеть', { name: state.character.name }));
     return;
   }

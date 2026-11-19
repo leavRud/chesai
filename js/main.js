@@ -84,7 +84,8 @@ const CLOCK_TICK_MS = 100;
 function chargeClock() {
   if (!state.timerRunning || !state.timerSide || state.timerLastTick == null) return;
   const now = performance.now();
-  const spent = (now - state.timerLastTick) / 1000;
+  // Пока открыты подсказки для новичков (js/onboarding.js), время не списывается
+  const spent = onboardingOpen() ? 0 : (now - state.timerLastTick) / 1000;
   state.timerLastTick = now;
   if (state.timerSide === 'w') state.timeWhite = Math.max(0, state.timeWhite - spent);
   else state.timeBlack = Math.max(0, state.timeBlack - spent);

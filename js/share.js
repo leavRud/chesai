@@ -123,22 +123,65 @@ async function openSharedCharacterFromUrl() {
   showSharedCharacterCard(normalizeSharedCharacter(data.profile, id));
 }
 
-// Гость нажал «Играть» на карточке по ссылке → вошёл → показываем ту же карточку.
+/* ---- Гость и персонажи: вход в последний момент ----
+   Гость нажал «Играть» на карточке (готовый, свой или по ссылке) → вошёл →
+   партия начинается сама. Гость нажал «Создать персонажа» → вошёл → создание
+   продолжается. sessionStorage переживает переход на VK/Google и обратно.
+   Закрыл окно входа, не войдя, — забываем, чтобы позже вход не начал партию сам. */
+const PENDING_CHAR_CREATE_KEY = 'chessPendingCharCreate';
+
 function rememberPendingSharedCharacter() {
-  try { sessionStorage.setItem(PENDING_SHARED_CHAR_KEY, JSON.stringify(state.character)); } catch (e) { /* без хранилища */ }
+  const pending = { profile: state.character, fromLink: Boolean(charState.fromLink), lastInput: charState.lastInput, play: true };
+  try { sessionStorage.setItem(PENDING_SHARED_CHAR_KEY, JSON.stringify(pending)); } catch (e) { /* без хранилища */ }
+}
+function rememberPendingCharacterCreate(input) {
+  try { sessionStorage.setItem(PENDING_CHAR_CREATE_KEY, JSON.stringify(input)); } catch (e) { /* без хранилища */ }
+}
+function forgetPendingCharacterActions() {
+  try { sessionStorage.removeItem(PENDING_SHARED_CHAR_KEY); sessionStorage.removeItem(PENDING_CHAR_CREATE_KEY); } catch (e) { /* нет хранилища */ }
+}
+function takeSessionJson(key) {
+  let raw = null;
+  try { raw = sessionStorage.getItem(key); sessionStorage.removeItem(key); } catch (e) { /* нет хранилища */ }
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (e) { return null; }
 }
 
 function resumePendingSharedCharacter() {
   if (!chatSignedIn) return;
-  let raw = null;
-  try { raw = sessionStorage.getItem(PENDING_SHARED_CHAR_KEY); sessionStorage.removeItem(PENDING_SHARED_CHAR_KEY); } catch (e) { /* нет хранилища */ }
-  if (!raw) return;
-  let parsed;
-  try { parsed = JSON.parse(raw); } catch (e) { return; }
-  const shareId = SHARE_ID_RE.test(parsed?.shareId) ? parsed.shareId : null;
+  resumePendingCharacterCreate();
+  const parsed = takeSessionJson(PENDING_SHARED_CHAR_KEY);
+  if (!parsed) return;
+  // Раньше здесь лежал сам профиль, теперь — { profile, fromLink, lastInput, play }
+  const raw = parsed.profile && typeof parsed.profile === 'object' ? parsed.profile : parsed;
+  const shareId = SHARE_ID_RE.test(raw?.shareId) ? raw.shareId : null;
   hideModal('authModal');
-  showSharedCharacterCard(normalizeSharedCharacter(parsed, shareId));
+  hideModal('characterSetupModal');
+  showSharedCharacterCard(normalizeSharedCharacter(raw, shareId));
+  charState.fromLink = parsed.profile ? Boolean(parsed.fromLink) : true;
+  const input = parsed.lastInput;
+  if (input && ['name', 'desc'].includes(input.type) && typeof input.value === 'string') {
+    charState.lastInput = { type: input.type, value: input.value.slice(0, 500) };
+  }
+  if (parsed.play) $id('charCardPlayBtn').click();
 }
+
+function resumePendingCharacterCreate() {
+  const input = takeSessionJson(PENDING_CHAR_CREATE_KEY);
+  if (!input || !['name', 'desc'].includes(input.type) || typeof input.value !== 'string' || !input.value.trim()) return;
+  const value = input.value.trim().slice(0, input.type === 'name' ? 60 : 500);
+  hideModal('authModal');
+  // Возвращаем введённое в форму и жмём «Создать» — дальше обычный путь
+  openCharacterSetup();
+  setCharTab(input.type);
+  $id(input.type === 'name' ? 'charNameInput' : 'charDescInput').value = value;
+  $id('charCreateBtn').click();
+}
+
+['authCloseBtn', 'authLoginCancelBtn', 'authRegisterCancelBtn'].forEach((id) => {
+  $id(id)?.addEventListener('click', forgetPendingCharacterActions);
+});
+$id('authModal')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) forgetPendingCharacterActions(); });
 
 $id('charCardShareBtn').addEventListener('click', async () => {
   const c = state.character;

@@ -42,9 +42,20 @@ function appHomeLink() {
   return IS_VK ? VK_APP_URL : `${location.origin}${location.pathname.replace(/index\.html$/, '')}`;
 }
 
-function vkSend(method, params) {
-  if (!IS_VK || !window.vkBridge) return Promise.reject(new Error('not in VK'));
-  return window.vkBridge.send(method, params);
+// VK Bridge нужен только внутри VK, на сайте его не грузим.
+// Промис отдаёт window.vkBridge или null (не VK, файл не загрузился).
+const vkBridgeReady = !IS_VK ? Promise.resolve(null) : new Promise((resolve) => {
+  const script = document.createElement('script');
+  script.src = 'vendor/vk-bridge-2.15.11.min.js';
+  script.onload = () => resolve(window.vkBridge || null);
+  script.onerror = () => resolve(null);
+  document.head.appendChild(script);
+});
+
+async function vkSend(method, params) {
+  const bridge = await vkBridgeReady;
+  if (!bridge) throw new Error('not in VK');
+  return bridge.send(method, params);
 }
 
 // Отмена в окне VK приходит ошибкой с error_data.error_reason / error_code 4
@@ -113,9 +124,7 @@ async function vkAutoLogin() {
 if (IS_VK) {
   document.documentElement.classList.add('is-vk');
   trackGoal('vk_launch', { platform: new URLSearchParams(location.search).get('vk_platform') || '' });
-  if (window.vkBridge) {
-    window.vkBridge.send('VKWebAppInit').catch(() => {});
-    // Тёмная шапка и светлые значки статус-бара — под тёмный главный экран
-    window.vkBridge.send('VKWebAppSetViewSettings', { status_bar_style: 'light', action_bar_color: '#141414' }).catch(() => {});
-  }
+  vkSend('VKWebAppInit').catch(() => {});
+  // Тёмная шапка и светлые значки статус-бара — под тёмный главный экран
+  vkSend('VKWebAppSetViewSettings', { status_bar_style: 'light', action_bar_color: '#141414' }).catch(() => {});
 }

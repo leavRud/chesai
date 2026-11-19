@@ -29,27 +29,27 @@ function animateCapture(square, color = 'red') {
    ЗВУК (аудиофайлы из assests/)
    ========================================================================= */
 // Соответствие событий и файлов из папки assests:
-//   step.wav  — ход/взятие фигуры
-//   check.wav — шах
-//   win.wav   — победа игрока
-//   lose.wav  — поражение игрока
-//   error.wav — ошибка (неверный ход, сбой сети, неверный ввод)
-//   click.wav — клик по интерфейсу
-//   ach.wav   — получено достижение
-//   catch-N.wav — поймана падающая фигура на главном экране, см. playCatchSound()
+//   step.mp3  — ход/взятие фигуры
+//   check.mp3 — шах
+//   win.mp3   — победа игрока
+//   lose.mp3  — поражение игрока
+//   error.mp3 — ошибка (неверный ход, сбой сети, неверный ввод)
+//   click.mp3 — клик по интерфейсу
+//   ach.mp3   — получено достижение
+//   catch-N.mp3 — поймана падающая фигура на главном экране, см. playCatchSound()
 const CATCH_SOUNDS = ['catch2', 'catch3', 'catch4', 'catch5', 'catch6', 'catch7', 'catch8', 'catch9', 'catch10'];
 const SOUND_FILES = {
-  move: 'assests/step.wav',
-  capture: 'assests/step.wav',
-  check: 'assests/check.wav',
-  win: 'assests/win.wav',
-  lose: 'assests/lose.wav',
-  error: 'assests/error.wav',
-  ui: 'assests/click.wav',
-  achievement: 'assests/ach.wav',
-  notification: 'assests/notif.wav',
+  move: 'assests/step.mp3',
+  capture: 'assests/step.mp3',
+  check: 'assests/check.mp3',
+  win: 'assests/win.mp3',
+  lose: 'assests/lose.mp3',
+  error: 'assests/error.mp3',
+  ui: 'assests/click.mp3',
+  achievement: 'assests/ach.mp3',
+  notification: 'assests/notif.mp3',
 };
-CATCH_SOUNDS.forEach((kind) => { SOUND_FILES[kind] = `assests/catch-${kind.slice(5)}.wav`; });
+CATCH_SOUNDS.forEach((kind) => { SOUND_FILES[kind] = `assests/catch-${kind.slice(5)}.mp3`; });
 
 // Основной путь — Web Audio: файлы декодируются заранее, и звук начинается сразу.
 // <audio> грузит файл при первом запуске, поэтому первый звук опаздывал. Он
@@ -58,13 +58,33 @@ const SoundContext = window.AudioContext || window.webkitAudioContext;
 const audioCtx = SoundContext ? new SoundContext({ latencyHint: 'interactive' }) : null;
 const soundBuffers = {}; // kind -> декодированный звук
 
+// MP3-кодировщик дописывает в начало 10–60 мс тишины, и короткий звук (клик,
+// ход) заметно опаздывает. Отрезаем всё до первого слышимого отсчёта.
+const SOUND_SILENCE_LEVEL = 0.001; // ≈ −60 дБ
+function trimLeadingSilence(buffer) {
+  let start = buffer.length;
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const data = buffer.getChannelData(c);
+    let i = 0;
+    while (i < start && Math.abs(data[i]) < SOUND_SILENCE_LEVEL) i++;
+    start = i;
+  }
+  if (start === 0 || start >= buffer.length) return buffer;
+  const trimmed = audioCtx.createBuffer(buffer.numberOfChannels, buffer.length - start, buffer.sampleRate);
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    trimmed.copyToChannel(buffer.getChannelData(c).subarray(start), c);
+  }
+  return trimmed;
+}
+
 function preloadSounds() {
   if (!audioCtx) return;
   const decoded = {}; // один файл у нескольких событий декодируем один раз
   Object.entries(SOUND_FILES).forEach(([kind, src]) => {
     decoded[src] = decoded[src] || fetch(src)
       .then(res => res.arrayBuffer())
-      .then(data => audioCtx.decodeAudioData(data));
+      .then(data => audioCtx.decodeAudioData(data))
+      .then(trimLeadingSilence);
     decoded[src].then(buffer => { soundBuffers[kind] = buffer; }).catch(() => {});
   });
 }

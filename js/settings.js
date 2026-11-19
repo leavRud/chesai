@@ -135,10 +135,12 @@ function applyBoardStyle(name) {
   if (state.board && state.game) state.board.position(state.game.fen(), false);
 }
 
-function applyGlow(on) {
-  document.documentElement.classList.toggle('no-glow', !on);
-  localStorage.setItem('chessGlow', on ? '1' : '0');
-  state.settings.perfGlow = on;
+function applyLiteMode(on) {
+  state.settings.liteMode = on;
+  localStorage.setItem('chess_liteMode', on ? '1' : '0');
+  document.documentElement.classList.toggle('lite', on);
+  // Фон главного экрана перезапускаем: в лёгком режиме он стоит на месте
+  if (!$id('homeScreen').classList.contains('hidden')) initHomeFigures();
 }
 
 function applyHomeBackground(name, restart) {
@@ -148,11 +150,6 @@ function applyHomeBackground(name, restart) {
     el.classList.toggle('is-active', el.dataset.homeBg === name);
   });
   if (restart && !$id('homeScreen').classList.contains('hidden')) initHomeFigures();
-}
-
-function applyPerfMode() {
-  const lowPerf = !state.settings.perfHighFps || !state.settings.perfSmoothAnim;
-  document.documentElement.classList.toggle('perf-low', lowPerf);
 }
 
 /* ---- Режим анализа («Стандартный» / «Слабый ПК») ---- */
@@ -343,24 +340,10 @@ function initSettingsPanel() {
     localStorage.setItem('chessAutoHintDelay', autoHintDelaySlider.value);
   });
 
-  // Производительность
-  const perfIds = ['perfHardware', 'perfHighFps', 'perfSmoothAnim'];
-  perfIds.forEach(id => {
-    const el = $id(id);
-    el.checked = state.settings[id];
-    el.addEventListener('change', () => {
-      state.settings[id] = el.checked;
-      localStorage.setItem('chess_' + id, el.checked ? '1' : '0');
-      applyPerfMode();
-    });
-  });
-  applyPerfMode();
-
-  // Эффекты свечения
-  const glowToggle = $id('perfGlow');
-  glowToggle.checked = state.settings.perfGlow;
-  applyGlow(glowToggle.checked);
-  glowToggle.addEventListener('change', () => applyGlow(glowToggle.checked));
+  // Лёгкий режим
+  const liteToggle = $id('liteModeToggle');
+  liteToggle.checked = state.settings.liteMode;
+  liteToggle.addEventListener('change', () => applyLiteMode(liteToggle.checked));
 
   // Фон главного экрана
   applyHomeBackground(state.settings.homeBackground, false);

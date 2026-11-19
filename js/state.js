@@ -71,10 +71,8 @@ const state = {
     autoHint: localStorage.getItem('chessAutoHint') === '1',
     autoHintDelay: parseInt(localStorage.getItem('chessAutoHintDelay') || '20', 10),
     language: uiLang,
-    perfHardware: localStorage.getItem('chess_perfHardware') !== '0',
-    perfHighFps: localStorage.getItem('chess_perfHighFps') !== '0',
-    perfSmoothAnim: localStorage.getItem('chess_perfSmoothAnim') !== '0',
-    perfGlow: localStorage.getItem('chessGlow') !== '0',
+    // Лёгкий режим: класс ставит скрипт в <head> до первой отрисовки
+    liteMode: document.documentElement.classList.contains('lite'),
     // Фон главного экрана: 'knights' — рой коней, 'snow' — фигурный снегопад
     homeBackground: localStorage.getItem('chess_homeBackground') === 'snow' ? 'snow' : 'knights',
     timeLimited: localStorage.getItem('chessTimeLimited') !== '0',

@@ -489,6 +489,8 @@ const Achievements = (function () {
     syncAchievementToSupabase(def.id);
     toastQueue.push(def);
     processToastQueue();
+    // Подсказка к первому достижению — js/onboarding.js
+    window.dispatchEvent(new CustomEvent('achievement-unlocked', { detail: { id: def.id, name: def.name, reward: def.reward } }));
     // Пересчитываем процентные ("Коллекционер") достижения при каждой новой разблокировке
     if (!def.id.startsWith('meta_')) runChecks('meta', {});
   }

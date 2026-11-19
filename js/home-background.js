@@ -56,6 +56,9 @@ function initHomeFigures() {
   };
 
   positionFigures();
+  window.addEventListener('resize', onHomeResize);
+  if (isLiteMode()) return; // кони стоят на месте, пешек нет
+
   startEnemySpawner();
 
   if (homeAnimationInterval) clearInterval(homeAnimationInterval);
@@ -66,7 +69,6 @@ function initHomeFigures() {
   window.addEventListener('mousemove', onHomeMouseMove);
   window.addEventListener('touchstart', onHomeTouch, { passive: true });
   window.addEventListener('touchmove', onHomeTouch, { passive: true });
-  window.addEventListener('resize', onHomeResize);
 }
 
 // Кони с экрана загрузки становятся роем: те же клетки, что и у кольца
@@ -539,6 +541,11 @@ function resizeHomeSnow() {
   }
   homeSnow.flakes.length = count;
   homeSnow.flakes.sort((a, b) => a.z - b.z);
+  // Новый размер холста стирает картинку: в лёгком режиме рисуем её заново
+  if (isLiteMode()) {
+    cancelAnimationFrame(homeSnow.raf);
+    homeSnow.raf = requestAnimationFrame(drawHomeSnow);
+  }
 }
 
 function homeSnowLocalPoint(e) {
@@ -643,5 +650,5 @@ function drawHomeSnow(now) {
     drawHomeSnowGlyph(ctx, v, s, 1 + ease * 0.6, (0.12 + v.z * 0.6 + 0.3 * flash) * (1 - ease));
   }
   ctx.globalAlpha = 1;
-  s.raf = requestAnimationFrame(drawHomeSnow);
+  if (!isLiteMode()) s.raf = requestAnimationFrame(drawHomeSnow);
 }

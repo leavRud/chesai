@@ -141,7 +141,7 @@ function createTourLoader(host, { text = '', compact = false } = {}) {
       if (value != null) api.setText(value);
       if (!s.alive) return Promise.resolve();
       if (s.finish) return new Promise(resolve => { const prev = s.finish.resolve; s.finish.resolve = () => { prev(); resolve(); }; });
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      if (document.documentElement.classList.contains('lite') || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         s.p = 100;
         render();
         return Promise.resolve();

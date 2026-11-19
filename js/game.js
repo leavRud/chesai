@@ -92,9 +92,10 @@ function initGame() {
     onDrop,
     onSnapEnd,
     onSnapbackEnd: clearBoardDragPending, // нажатие на месте: копия вернулась
-    moveSpeed: 220,
-    snapbackSpeed: 260,
-    snapSpeed: 90,
+    // В лёгком режиме фигуры встают на место сразу, без полёта по доске
+    moveSpeed: state.settings.liteMode ? 0 : 220,
+    snapbackSpeed: state.settings.liteMode ? 0 : 260,
+    snapSpeed: state.settings.liteMode ? 0 : 90,
   };
   state.board = Chessboard('board', config);
   tapSelectedSquare = null;
@@ -148,6 +149,8 @@ function initGame() {
   // Настройку режима анализа нельзя менять во время партии — обновляем
   // состояние блокировки в панели настроек (если она открыта/будет открыта).
   syncAnalysisModeLock();
+
+  scheduleGameTour(); // подсказки к первой партии, js/onboarding.js
 
   if (window.Achievements) {
     window.Achievements.track('gameStart', {

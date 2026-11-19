@@ -13,6 +13,11 @@
 // их направляет. На ПК поведение прежнее — кони всегда идут за мышью.
 const HOME_TOUCH_MEDIA = window.matchMedia('(hover: none) and (pointer: coarse)');
 
+// Лёгкий режим (настройки → Производительность): фон рисуется один раз и стоит
+function isLiteMode() {
+  return document.documentElement.classList.contains('lite');
+}
+
 function computeHomeGrid(layer, bgSelector) {
   const rect = layer.getBoundingClientRect();
   const containerWidth = rect.width;
@@ -184,7 +189,7 @@ function startLoadingSwarm(layer) {
   layoutLoadingRing();
   window.addEventListener('resize', resizeLoadingSwarm);
 
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (isLiteMode() || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     knights.forEach(knight => {
       Object.assign(knight, { row: knight.goalRow, col: knight.goalCol, arrived: true });
       knight.el.classList.add('is-lit');
@@ -216,6 +221,8 @@ function resizeLoadingSnow() {
   }
   snow.flakes.length = count;
   snow.flakes.sort((a, b) => a.z - b.z);
+  // Новый размер холста стирает картинку: в лёгком режиме рисуем её заново
+  if (isLiteMode()) snow.raf = requestAnimationFrame(drawLoadingSnow);
 }
 
 function drawLoadingSnow(now) {
@@ -239,7 +246,7 @@ function drawLoadingSnow(now) {
     drawHomeSnowGlyph(ctx, f, s, 1, 0.12 + f.z * 0.6);
   }
   ctx.globalAlpha = 1;
-  s.raf = requestAnimationFrame(drawLoadingSnow);
+  if (!isLiteMode()) s.raf = requestAnimationFrame(drawLoadingSnow);
 }
 
 function startLoadingSnow(layer) {

@@ -6,7 +6,7 @@
 //    без сети — из кэша, чтобы приложение открывалось и офлайн;
 //  - vendor/ и stockfish/ — сначала кэш: в именах файлов уже есть версия,
 //    а движок весит 7 МБ, качать его при каждом запуске незачем;
-//  - картинки, звуки и шрифты — из кэша сразу, в фоне обновляем.
+//  - картинки, звуки и шрифты (всё в assests/) — из кэша сразу, в фоне обновляем.
 // Запросы к Supabase и нейросети (другие домены, POST) не трогаем.
 'use strict';
 
@@ -25,16 +25,14 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
-const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
-
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   const sameOrigin = url.origin === self.location.origin;
-  if (!sameOrigin && !FONT_HOSTS.includes(url.hostname)) return;
+  if (!sameOrigin) return;
 
-  if (!sameOrigin || url.pathname.includes('/assests/')) {
+  if (url.pathname.includes('/assests/')) {
     event.respondWith(staleWhileRevalidate(event, req));
   } else if (url.pathname.includes('/vendor/') || url.pathname.includes('/stockfish/')) {
     event.respondWith(cacheFirst(req));

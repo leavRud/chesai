@@ -205,6 +205,7 @@ function closeMenuPanel() { closeSidePanel(); }
    'achievements', 'stats', 'about') совпадают с именами view — поэтому
    обработчик сводится к одному вызову navigateTo(). */
 function handleMenuAction(action) {
+  if (action === 'tour') { replayOnboarding(); return; } // js/onboarding.js
   navigateTo(action);
 }
 

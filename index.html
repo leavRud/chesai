@@ -195,7 +195,14 @@
     window.__homeKnightSrc = { gold: 'assests/knight.webp', maroon: 'assests/knight-red.webp', blue: 'assests/knight-blue.webp', green: 'assests/knight-green.webp' }[accent] || 'assests/knight.webp';
     var boardStyle = localStorage.getItem('chessBoardStyle') || 'classic';
     document.documentElement.setAttribute('data-board-style', boardStyle);
-    if (localStorage.getItem('chessGlow') === '0') document.documentElement.classList.add('no-glow');
+    // Лёгкий режим. Пока его не выбирали: включён, если раньше выключали анимации
+    // или свечение старыми переключателями либо система просит меньше движения
+    var lite = localStorage.getItem('chess_liteMode');
+    if (lite === null) {
+      lite = (localStorage.getItem('chess_perfHighFps') === '0' || localStorage.getItem('chess_perfSmoothAnim') === '0' ||
+        localStorage.getItem('chessGlow') === '0' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) ? '1' : '0';
+    }
+    if (lite === '1') document.documentElement.classList.add('lite');
     document.documentElement.dataset.homeBg = localStorage.getItem('chess_homeBackground') === 'snow' ? 'snow' : 'knights';
   } catch (e) {}
 })();
@@ -204,10 +211,12 @@
 <!-- chessboard.js CSS -->
 <link rel="stylesheet" href="vendor/chessboard-1.0.0.min.css" />
 
-<!-- Шрифты -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@400;500;600;700&family=Cormorant+Garamond:wght@600&display=swap" rel="stylesheet">
+<!-- Шрифты: свои файлы (см. assests/fonts/fonts.css). Заранее грузим то, что
+     видно на заставке и главном экране: «chesai», «Загрузка», «Играть». -->
+<link rel="preload" href="assests/fonts/manrope-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assests/fonts/playfair-display-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assests/fonts/cormorant-garamond-600-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assests/fonts/fonts.css" />
 
 <link rel="stylesheet" href="style.css" />
 </head>
@@ -892,6 +901,11 @@
           <span class="menu-nav-label">Частые вопросы</span>
           <span class="menu-nav-arrow">›</span>
         </button>
+        <button type="button" class="menu-nav-item" data-menu-action="tour">
+          <span class="menu-nav-icon" data-icon="bulb"></span>
+          <span class="menu-nav-label">Подсказки</span>
+          <span class="menu-nav-arrow">›</span>
+        </button>
 
       </div>
 
@@ -1216,20 +1230,11 @@
         <div class="settings-group">
           <div class="settings-group-title">Производительность</div>
           <div class="settings-row">
-            <span class="settings-row-label">Аппаратное ускорение</span>
-            <label class="toggle-switch"><input id="perfHardware" type="checkbox" checked><span class="toggle-slider"></span></label>
-          </div>
-          <div class="settings-row">
-            <span class="settings-row-label">Высокий FPS</span>
-            <label class="toggle-switch"><input id="perfHighFps" type="checkbox" checked><span class="toggle-slider"></span></label>
-          </div>
-          <div class="settings-row">
-            <span class="settings-row-label">Плавные анимации</span>
-            <label class="toggle-switch"><input id="perfSmoothAnim" type="checkbox" checked><span class="toggle-slider"></span></label>
-          </div>
-          <div class="settings-row">
-            <span class="settings-row-label">Эффекты свечения</span>
-            <label class="toggle-switch"><input id="perfGlow" type="checkbox" checked><span class="toggle-slider"></span></label>
+            <div>
+              <span class="settings-row-label">Лёгкий режим</span>
+              <div class="settings-row-desc">Без анимаций, размытия и свечения, фон главного экрана замирает. Включите, если сайт тормозит</div>
+            </div>
+            <label class="toggle-switch"><input id="liteModeToggle" type="checkbox"><span class="toggle-slider"></span></label>
           </div>
         </div>
 
@@ -1546,14 +1551,14 @@
 <!-- chessboard.js — визуальная доска -->
 <script src="vendor/chessboard-1.0.0.min.js"></script>
 
-<!-- Stockfish (лёгкая версия) -->
-<script src="stockfish/stockfish-18-lite-single.js"></script>
+<!-- Stockfish здесь не подключаем: он работает в воркере, js/engine.js сам грузит
+     stockfish/stockfish-18-lite-single.js через new Worker(). VK Bridge нужен только
+     внутри VK — его подгружает js/vk.js. -->
 
 <!-- Основной скрипт приложения -->
 <script src="js/achievement-icons.js"></script>
 <script src="achievements.js"></script>
 <script src="vendor/supabase-js-2.118.0.js"></script>
-<script src="vendor/vk-bridge-2.15.11.min.js"></script>
 <!-- Логика приложения. Это обычные скрипты с общими глобальными именами,
      поэтому порядок важен: файл может сразу при загрузке пользоваться только
      тем, что объявлено в файлах выше. state.js — первым, main.js — последним. -->
@@ -1588,6 +1593,7 @@
 <script src="js/account.js"></script>
 <script src="js/side-panel.js"></script>
 <script src="js/side-panel-views.js"></script>
+<script src="js/onboarding.js"></script>
 <script src="js/main.js"></script>
 <script src="js/pwa.js"></script>
 
