@@ -576,9 +576,14 @@ function describeGameForCharacter() {
   return `ты играешь ${myColor}, ход ${moveNo}${recent ? `, последние ходы: ${recent}` : ', партия только началась'}, ${material}, ${turn}`;
 }
 
-const CHARACTER_REPLY_COOLDOWN_MS = 30000;
-const CHARACTER_QUIET_PLIES = 12;    // столько полуходов тишины, прежде чем персонаж может заговорить сам
-const CHARACTER_QUIET_CHANCE = 0.5;  // чтобы реплики не звучали строго по расписанию
+// Каждая самостоятельная реплика — платный запрос к нейросети (~0,07 ₽), а
+// игрок за неё ничего не тратит. С 20.11.2026 персонаж говорит сам реже:
+// пауза между репликами, редкие реплики на шах и потолок на партию.
+const CHARACTER_REPLY_COOLDOWN_MS = 60000;
+const CHARACTER_QUIET_PLIES = 20;    // столько полуходов тишины, прежде чем персонаж может заговорить сам
+const CHARACTER_QUIET_CHANCE = 0.35; // чтобы реплики не звучали строго по расписанию
+const CHARACTER_CHECK_CHANCE = 0.25; // шахи бывают часто — отзывается не на каждый
+const CHARACTER_MAX_AUTO_REPLIES = 4; // самостоятельных реплик за партию (смена состояния — сверх)
 
 async function characterReact(context, isAuto = false) {
   if (state.mode !== 'characters' || !state.character) return;
@@ -587,6 +592,7 @@ async function characterReact(context, isAuto = false) {
     // Отмечаем сразу, а не после ответа: иначе за время запроса уйдёт второй
     state.autoReplyPending = true;
     state.lastAutoReplyTime = Date.now();
+    state.autoRepliesThisGame++;
     state.pliesSinceCharacterSpoke = 0;
   }
   // Пока персонаж пишет сам, игрок ждёт: поле ввода заблокировано
@@ -652,7 +658,7 @@ function triggerCharacterEvents(move, isUserMove) {
   }
   // Не чаще раза в CHARACTER_REPLY_COOLDOWN_MS
   const isBusy = state.autoReplyPending || Date.now() - state.lastAutoReplyTime < CHARACTER_REPLY_COOLDOWN_MS;
-  if (isBusy) return;
+  if (isBusy || state.autoRepliesThisGame >= CHARACTER_MAX_AUTO_REPLIES) return;
   let event = null;
   if (!isUserMove && move.captured === 'q') {
     event = 'captured_queen';
@@ -664,7 +670,7 @@ function triggerCharacterEvents(move, isUserMove) {
     event = 'good_combo';
   } else if (!isUserMove && flavor === 'opponentMistake') {
     event = 'opponent_mistake';
-  } else if (game.in_check()) {
+  } else if (game.in_check() && Math.random() < CHARACTER_CHECK_CHANCE) {
     event = isUserMove ? 'player_gives_check' : 'character_gives_check';
   } else if (!isUserMove && state.pliesSinceCharacterSpoke >= CHARACTER_QUIET_PLIES && Math.random() < CHARACTER_QUIET_CHANCE) {
     event = 'quiet';

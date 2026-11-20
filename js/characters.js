@@ -358,11 +358,12 @@ function setCharCardLoading(isLoading) {
   $id('charCardRegenBtn').disabled = isLoading;
 }
 
-// Сколько ждать персонажа (логи chat-proxy, 17.11.2026): новый через Opus
-// 5.5 — 12–29 с, обычно ~16 с; по имени из базы — 2–3 с вместе с сетью.
-// Заранее не знаем, есть ли имя в базе, поэтому первые 2,5 с прогресс
-// идёт как для базы (до ~60%), потом — спокойно, как для новой генерации.
-const CHAR_GEN_EXPECTED_MS = 17000;
+// Сколько ждать персонажа: новый через Haiku 5.5 (тест 20.11.2026) — 10–40 с,
+// обычно ~20 с; «Перегенерировать» через Opus 5.5 — 11–16 с; по имени из
+// базы — 2–3 с вместе с сетью. Заранее не знаем, есть ли имя в базе, поэтому
+// первые 2,5 с прогресс идёт как для базы (до ~60%), потом — как для новой.
+const CHAR_GEN_EXPECTED_MS = 20000;
+const CHAR_REGEN_EXPECTED_MS = 15000;
 const CHAR_CACHE_EXPECTED_MS = 2500;
 let charGenToken = 0;
 
@@ -377,7 +378,7 @@ async function runCharacterGeneration(input, { fresh = false } = {}) {
     loader.plan(68, CHAR_CACHE_EXPECTED_MS);
     slowTimer = setTimeout(() => loader.plan(96, CHAR_GEN_EXPECTED_MS - CHAR_CACHE_EXPECTED_MS), CHAR_CACHE_EXPECTED_MS);
   } else {
-    loader.plan(96, CHAR_GEN_EXPECTED_MS);
+    loader.plan(96, fresh ? CHAR_REGEN_EXPECTED_MS : CHAR_GEN_EXPECTED_MS);
   }
   try {
     const profile = await generateCharacterProfile(input, { fresh });

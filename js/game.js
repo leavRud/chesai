@@ -58,6 +58,7 @@ function initGame() {
   state.prevCharacterEval = null;
   state.lastMoveFlavor = null;
   state.lastAutoReplyTime = 0;
+  state.autoRepliesThisGame = 0;
   state.lastAutoReplies = [];
   state.autoReplyPending = false;
   state.pliesSinceCharacterSpoke = 0;

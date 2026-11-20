@@ -82,6 +82,7 @@ const state = {
   },
 };
 state.lastAutoReplyTime = 0;
+state.autoRepliesThisGame = 0;      // самостоятельных реплик персонажа в этой партии
 state.lastAutoReplies = [];
 state.autoReplyPending = false;
 state.characterTyping = false;
