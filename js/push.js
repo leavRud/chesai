@@ -165,24 +165,76 @@ function formatStreak(n) {
   return `${n} ${plural(n, 'день', 'дня', 'дней')}`;
 }
 
-function renderProfileStreak() {
-  const el = $id('profileStatStreak');
-  if (!el) return;
-  fetchPlayStreak().then(s => { el.textContent = s ? formatStreak(s.streak) : '—'; });
+let profileStreakRequest = 0;
+
+async function renderProfileStreak() {
+  const request = ++profileStreakRequest;
+  const current = $id('profileStatStreak');
+  const best = $id('profileStreakBest');
+  const week = $id('profileStreakWeek');
+  current.textContent = best.textContent = '—';
+  week.replaceChildren();
+  const userId = await currentUserId();
+  if (!userId || request !== profileStreakRequest) return;
+
+  const dateKey = new Intl.DateTimeFormat('sv-SE', { timeZone: userTimeZone() });
+  const played = new Set();
+  const pageSize = 500;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await sb.from('game_history').select('played_at')
+      .eq('user_id', userId).order('played_at').order('id').range(offset, offset + pageSize - 1);
+    if (request !== profileStreakRequest || error || !data) return;
+    for (const game of data) played.add(dateKey.format(new Date(game.played_at)));
+    if (data.length < pageSize) break;
+  }
+
+  // UTC here represents calendar dates already converted to the player's timezone.
+  const dayMs = 86400000;
+  const today = Date.parse(dateKey.format(new Date()));
+  let previous = -Infinity, run = 0, record = 0;
+  for (const key of [...played].sort()) {
+    const day = Date.parse(key);
+    run = day - previous === dayMs ? run + 1 : 1;
+    record = Math.max(record, run);
+    previous = day;
+  }
+  current.textContent = formatStreak(previous >= today - dayMs ? run : 0);
+  best.textContent = formatStreak(record);
+  for (let ago = 6; ago >= 0; ago--) {
+    const date = new Date(today - ago * dayMs);
+    const active = played.has(date.toISOString().slice(0, 10));
+    const cell = document.createElement('span');
+    cell.setAttribute('role', 'listitem');
+    cell.title = date.toLocaleDateString(uiLang, { dateStyle: 'long', timeZone: 'UTC' }) +
+      ' · ' + t(active ? 'Партия сыграна' : 'Нет партии');
+    cell.setAttribute('aria-label', cell.title);
+    if (!ago) cell.setAttribute('aria-current', 'date');
+    if (active) cell.className = 'played';
+    cell.textContent = date.toLocaleDateString(uiLang, { weekday: 'short', timeZone: 'UTC' });
+    const mark = document.createElement('b');
+    mark.textContent = active ? '✓' : '·';
+    cell.append(mark);
+    week.append(cell);
+  }
 }
 
 // Партия сохранилась в аккаунт: первая за день продлевает серию — хвалим один раз в день.
-async function onGameSavedForStreak() {
+async function onGameSavedForStreak(userId) {
   const s = await fetchPlayStreak();
   // Достижения «N дней подряд»: серия аккаунта учитывает и другие устройства
   if (s) window.Achievements?.track('dayStreak', { streak: s.streak, playedToday: s.played_today });
-  if (!s || s.streak < 2) return;
+  if (!s?.played_today || s.streak < 1) return;
   const today = new Date().toLocaleDateString('sv-SE');
+  const toastKey = STREAK_TOAST_KEY + ':' + userId;
   try {
-    if (localStorage.getItem(STREAK_TOAST_KEY) === today) return;
-    localStorage.setItem(STREAK_TOAST_KEY, today);
+    if (localStorage.getItem(toastKey) === today) return;
+    localStorage.setItem(toastKey, today);
   } catch (e) { return; }
   // Чуть позже, чтобы не спорить со звуком и тостами конца партии
-  setTimeout(() => showToast(t('Серия: {days} подряд! Загляните завтра, чтобы её продолжить', { days: formatStreak(s.streak) })), 2500);
-  trackGoal('streak_continue', { days: s.streak });
+  let message;
+  if (s.streak === 1) message = t('Первый день засчитан! Сыграйте завтра, чтобы продолжить серию.');
+  else if (s.streak === 2) message = t('Два дня подряд! Ещё одна партия завтра — и серия достигнет трёх дней.');
+  else message = t('Серия: {days} подряд! Загляните завтра, чтобы её продолжить', { days: formatStreak(s.streak) });
+  setTimeout(() => showToast(message), 2500);
+  trackGoal(s.streak === 1 ? 'streak_start' : 'streak_continue', { days: s.streak });
 }

@@ -134,7 +134,7 @@ async function insertGameRecord(rec) {
     if (!error) {
       rec.id = data.id;
       invalidateAccountGameStats();
-      onGameSavedForStreak();
+      onGameSavedForStreak(userId);
       if (getCurrentView() === 'games') renderGamesView();
       return applyRatedGameResult(data);
     }
