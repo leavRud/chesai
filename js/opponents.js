@@ -5,11 +5,12 @@
    ХОД НЕЙРОСЕТИ (STOCKFISH)
    ========================================================================= */
 function pickFallbackMove() {
+  if (!state.game || state.isGameOver) return null;
   const verboseMoves = state.game.moves({ verbose: true });
   const captures = verboseMoves.filter((m) => m.flags.includes('c') || m.flags.includes('e'));
   const pool = captures.length ? captures : verboseMoves;
   const chosen = pool[Math.floor(Math.random() * pool.length)];
-  return state.game.move({ from: chosen.from, to: chosen.to, promotion: 'q' });
+  return chosen ? moveBeforeFlag({ from: chosen.from, to: chosen.to, promotion: 'q' }) : null;
 }
 
 function setThinkingUI(isThinking) {
@@ -35,8 +36,8 @@ async function requestAiMove() {
   updateStatus();
 
   const level = currentAiLevel(); // js/home-screen.js
-  const fenForSearch = state.game.fen();
-  const gameStartedAt = state.gameStartedAt;
+  const game = state.game;
+  const fenForSearch = game.fen();
   showEngineLoadingStatus();
   await waitForEngine(3000);
 
@@ -44,13 +45,13 @@ async function requestAiMove() {
   if (level.max) {
     // «Максимум» — полная сила движка
     const moveUci = await searchBestMove(fenForSearch, { movetime: movetimeForSkill(20) });
-    if (gameStartedAt !== state.gameStartedAt || state.game.fen() !== fenForSearch) return;
+    if (state.game !== game || game.fen() !== fenForSearch || state.isGameOver) return;
     if (moveUci) moveObj = applyUciMove(moveUci);
   } else {
     const player = neutralAiPlayer(level.elo);
     const movetime = movetimeForSkill(eloToSkillLevel(level.elo));
     const candidates = await searchTopMoves(fenForSearch, { movetime, multipv: characterMovePolicy(player).multipv });
-    if (gameStartedAt !== state.gameStartedAt || state.game.fen() !== fenForSearch) return;
+    if (state.game !== game || game.fen() !== fenForSearch || state.isGameOver) return;
     if (candidates.length) moveObj = applyUciMove(pickCharacterMove(fenForSearch, candidates, player).move);
   }
   if (moveObj === null) {
@@ -76,7 +77,7 @@ function applyUciMove(uci) {
   const from = uci.substring(0, 2);
   const to = uci.substring(2, 4);
   const promotion = uci.length === 5 ? uci[4] : 'q';
-  return state.game.move({ from, to, promotion });
+  return moveBeforeFlag({ from, to, promotion });
 }
 
 async function searchTopMoves(fen, { movetime = 900, multipv = 3 } = {}) {
@@ -381,10 +382,10 @@ function characterThinkMs(game, { obvious = false, book = false } = {}) {
 
 // Ждёт, пока с начала раздумья пройдёт ms. false — пока ждали, партия
 // сменилась или закончилась, и ход делать уже не нужно.
-async function waitThinkTime(startedAt, ms, fen, gameStartedAt) {
+async function waitThinkTime(startedAt, ms, fen, game) {
   const rest = ms - (Date.now() - startedAt);
   if (rest > 0) await new Promise(r => setTimeout(r, rest));
-  return !state.isGameOver && gameStartedAt === state.gameStartedAt && state.game.fen() === fen;
+  return !state.isGameOver && state.game === game && game.fen() === fen;
 }
 
 /* ---- Персонаж с двумя состояниями (shift, см. characters.js) ----
@@ -437,20 +438,21 @@ async function requestCharacterMove() {
   setThinkingUI(true);
   updateStatus();
 
-  const fen = state.game.fen();
+  const game = state.game;
+  const fen = game.fen();
   const thinkStartedAt = Date.now();
-  const gameStartedAt = state.gameStartedAt;
 
   // Пока партия идёт по его защите — ходит по книге, а не по движку: так
   // дебют совпадает с тем, что написано в карточке персонажа.
   const bookSan = pickBookMove(state.character, state.game, state.aiColor);
   if (bookSan) {
-    const ready = await waitThinkTime(thinkStartedAt, characterThinkMs(state.game, { book: true }), fen, gameStartedAt);
+    const ready = await waitThinkTime(thinkStartedAt, characterThinkMs(game, { book: true }), fen, game);
     if (!ready) {
-      if (gameStartedAt === state.gameStartedAt) { state.isThinking = false; setThinkingUI(false); }
+      if (state.game === game) { state.isThinking = false; setThinkingUI(false); }
       return;
     }
-    const bookMove = state.game.move(bookSan, { sloppy: true });
+    const bookMove = moveBeforeFlag(bookSan, { sloppy: true });
+    if (state.isGameOver) return;
     if (bookMove) {
       state.lastMoveFlavor = null;
       state.characterEloLog.push(characterNow().elo);
@@ -469,8 +471,10 @@ async function requestCharacterMove() {
   if (clockEnabled() && clockLeft < 20) movetime = Math.min(movetime, 250);
   showEngineLoadingStatus();
   await waitForEngine(3000);
+  if (state.game !== game || state.isGameOver) return;
   const { multipv } = characterMovePolicy(characterNow());
   const candidates = await searchTopMoves(fen, { movetime, multipv });
+  if (state.game !== game || game.fen() !== fen || state.isGameOver) return;
 
   let moveObj = null;
   let chosenScore = null;
@@ -480,8 +484,8 @@ async function requestCharacterMove() {
     const target = pickCharacterMove(fen, candidates);
     // Забрать подставленное — очевидно, долго над этим не думают
     const obvious = candidates.length > 1 && choiceScore(candidates[0].score) - choiceScore(candidates[1].score) >= 200 && target.move === candidates[0].move;
-    if (!await waitThinkTime(thinkStartedAt, characterThinkMs(state.game, { obvious }), fen, gameStartedAt)) {
-      if (gameStartedAt === state.gameStartedAt) { state.isThinking = false; setThinkingUI(false); }
+    if (!await waitThinkTime(thinkStartedAt, characterThinkMs(game, { obvious }), fen, game)) {
+      if (state.game === game) { state.isThinking = false; setThinkingUI(false); }
       return;
     }
     moveObj = applyUciMove(target.move);

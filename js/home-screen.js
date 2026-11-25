@@ -12,6 +12,7 @@ function showHomeScreen() {
   hideModal('characterCardModal');
   initHomeFigures();
   placeModePill();
+  updateResumeGameButton();
   scheduleHomeTour(); // подсказки для новичков: если в первый раз не вышло (открыта модалка), покажем сейчас
 }
 function hideHomeScreen() {
@@ -208,6 +209,7 @@ $id('colorModalBackBtn').addEventListener('click', () => hideModal('colorModal')
 $id('startAiGameBtn').addEventListener('click', () => {
   playSound('ui');
   if (!chosenColor || !chosenLevel) return;
+  if (!confirmNewLocalGame()) return;
   state.playerColor = chosenColor;
   state.aiColor = chosenColor === 'w' ? 'b' : 'w';
   state.aiLevel = chosenLevel;

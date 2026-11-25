@@ -352,6 +352,11 @@ $id('chatInput').addEventListener('input', () => {
 $id('askBtn').disabled = $id('chatInput').value.trim().length === 0;
 
 $id('retryAiBtn').addEventListener('click', () => {
+  if (state.mode === 'online') {
+    retryOnlineWrites();
+    syncOnlineFromServer();
+    return;
+  }
   hideConnectionBanner();
   if (state.mode === 'ai' && state.game.turn() === state.aiColor) {
     requestAiMove();

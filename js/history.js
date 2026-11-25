@@ -128,6 +128,7 @@ async function saveFinishedGame(rec) {
 async function insertGameRecord(rec) {
   if (!rec.moves) return null; // партия без ходов (сдача сразу) — хранить нечего
   const userId = await currentUserId();
+  if (rec.uid && rec.uid !== userId) return null;
   if (userId) {
     const { player_name, id, gameKey, uid, ...row } = rec;
     const { data, error } = await sb.from('game_history').insert(row).select('id, player_elo, rating_delta').single();
@@ -145,43 +146,162 @@ async function insertGameRecord(rec) {
   return null;
 }
 
-/* ---- Брошенная партия ----
-   Рейтинговую партию (Stockfish или персонаж, вошли в аккаунт), в которой
-   игрок сделал хотя бы 2 хода, держим в браузере готовой записью «поражение».
-   Доиграли — запись стирается. Ушли с партии, начали новую, закрыли вкладку —
-   при следующем старте партии или загрузке приложения запись уходит в базу.
-   Раньше от проигрыша можно было уйти, просто не доиграв. */
+/* ---- Незаконченная партия на этом устройстве ---- */
 const PENDING_RATED_KEY = 'chessPendingRatedGame';
 const ABANDON_MIN_OWN_MOVES = 2;
+let localGameOwner = null;
+let activeLocalGame = null;
+const localGameTab = newLocalGameId();
 
-function markPendingRatedGame() {
-  const acc = getAccount();
-  if (!acc || !acc.uid || state.isReview || state.isGameOver) return;
-  if (state.mode !== 'ai' && state.mode !== 'characters') return;
-  const own = state.game.history({ verbose: true }).filter(m => m.color === state.playerColor).length;
-  if (own < ABANDON_MIN_OWN_MOVES) return;
-  const rec = buildGameRecord({ reason: 'abandon', winner: state.aiColor, summary: t('Партия брошена — засчитано поражение.') });
-  rec.uid = acc.uid;
-  rec.gameKey = state.gameStartedAt;
-  try { localStorage.setItem(PENDING_RATED_KEY, JSON.stringify(rec)); } catch (e) { /* без хранилища брошенную партию не засчитать */ }
+function localGameKey(owner) { return `chessActiveGame:${owner || 'guest'}`; }
+
+function newLocalGameId() {
+  return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function clearPendingRatedGame() {
-  try { localStorage.removeItem(PENDING_RATED_KEY); } catch (e) { /* ignore */ }
+function readLocalGame(owner = localGameOwner) {
+  try {
+    const draft = JSON.parse(localStorage.getItem(localGameKey(owner)) || 'null');
+    if (draft?.version === 1 && draft.owner === owner && typeof draft.id === 'string'
+      && ['ai', 'characters', 'friend'].includes(draft.mode) && ['w', 'b'].includes(draft.color)
+      && Array.isArray(draft.moves) && (draft.mode !== 'characters' || draft.character)) return draft;
+  } catch (e) { /* Не читается сохранение */ }
+  return null;
 }
 
-async function settlePendingRatedGame() {
-  let rec = null;
-  try { rec = JSON.parse(localStorage.getItem(PENDING_RATED_KEY) || 'null'); } catch (e) { rec = null; }
-  if (!rec) return;
-  clearPendingRatedGame(); // сразу: второй вызов не должен записать партию дважды
-  const userId = await currentUserId();
-  if (!userId || userId !== rec.uid) return; // вышли из аккаунта или это чужая партия
-  const change = await insertGameRecord(rec);
-  showToast(change
-    ? t('Незаконченная партия засчитана поражением. {rating}', { rating: formatRatingChange(change) })
-    : t('Незаконченная партия засчитана поражением.'));
+function writeLocalGame(draft) {
+  try {
+    localStorage.setItem(localGameKey(draft.owner), JSON.stringify(draft));
+    return true;
+  } catch (e) { return false; }
 }
+
+function setLocalGameOwner(owner) {
+  localGameOwner = owner;
+  // Старые версии сохраняли PGN для начисления поражения. Теперь из него
+  // можно продолжить игру. В старой записи остатки времени отсутствуют.
+  if (owner) {
+    try {
+      const rec = JSON.parse(localStorage.getItem(PENDING_RATED_KEY) || 'null');
+      if (rec?.uid === owner && !readLocalGame(owner)) {
+        const game = new Chess();
+        if (game.load_pgn(rec.pgn) && writeLocalGame({
+          version: 1, owner, id: newLocalGameId(), mode: rec.mode, color: rec.player_color,
+          moves: game.history({ verbose: true }).map(uciOf), aiLevel: aiLevelFromElo(rec.opponent_elo),
+          skill: rec.skill_level, character: rec.character, elapsed: (rec.duration_sec || 0) * 1000,
+          abandon: rec,
+        })) localStorage.removeItem(PENDING_RATED_KEY);
+      }
+    } catch (e) { /* Старая запись повреждена или хранилище недоступно */ }
+  }
+  updateResumeGameButton();
+}
+
+function resumableLocalGame() {
+  return readLocalGame() || (localGameOwner ? readLocalGame(null) : null);
+}
+
+function updateResumeGameButton() {
+  $id('resumeGameBtn').classList.toggle('hidden', !resumableLocalGame());
+}
+
+function claimLocalGame(saved) {
+  const owner = saved ? saved.owner : localGameOwner;
+  const id = saved?.id || newLocalGameId();
+  const persisted = !!saved && writeLocalGame({ ...saved, tab: localGameTab });
+  return { id, owner, persisted };
+}
+
+function ownsLocalGame() {
+  if (!activeLocalGame?.persisted) return true;
+  const draft = readLocalGame(activeLocalGame.owner);
+  return draft?.id === activeLocalGame.id && draft.tab === localGameTab;
+}
+
+function saveLocalGame() {
+  if (!activeLocalGame || !state.game || state.isReview || state.isGameOver || !ownsLocalGame()) return;
+  const { id, owner } = activeLocalGame;
+  const current = readLocalGame(owner);
+  if (current && current.id !== id) return;
+  const moves = state.game.history({ verbose: true });
+  const rated = owner && (state.mode === 'ai' || state.mode === 'characters')
+    && moves.filter(move => move.color === state.playerColor).length >= ABANDON_MIN_OWN_MOVES;
+  const abandon = rated ? buildGameRecord({
+    reason: 'abandon', winner: state.aiColor, summary: t('Партия брошена — засчитано поражение.'),
+  }) : null;
+  const saved = writeLocalGame({
+    version: 1, id, owner, tab: localGameTab, mode: state.mode, color: state.playerColor,
+    aiLevel: state.aiLevel, skill: state.skillLevel,
+    character: state.mode === 'characters' ? state.character : null,
+    characterPhase: state.characterPhase, characterEloLog: state.characterEloLog,
+    moves: moves.map(uciOf), elapsed: Date.now() - state.gameStartedAt,
+    clock: { enabled: state.timeLimited, white: state.timeWhite, black: state.timeBlack },
+    abandon,
+  });
+  if (saved) activeLocalGame.persisted = true;
+}
+
+function removeLocalGame(draft) {
+  if (!draft || readLocalGame(draft.owner)?.id !== draft.id) return false;
+  try { localStorage.removeItem(localGameKey(draft.owner)); } catch (e) { return false; }
+  return true;
+}
+
+function discardLocalGame(draft) {
+  if (!removeLocalGame(draft) || !draft.abandon) return;
+  insertGameRecord({ ...draft.abandon, uid: draft.owner }).then(change => {
+    if (change) showToast(t('Незаконченная партия засчитана поражением. {rating}', { rating: formatRatingChange(change) }));
+  });
+}
+
+function confirmNewLocalGame() {
+  const draft = readLocalGame();
+  if (draft?.moves.length && !confirm(replaceGameMessage(draft.abandon))) return false;
+  discardLocalGame(draft);
+  return true;
+}
+
+function replaceGameMessage(rated) {
+  return rated
+    ? t('Начать новую игру? Незаконченная партия будет засчитана поражением. Если позиция равная, можно предложить ничью.')
+    : t('Начать новую игру? Текущая партия будет потеряна.');
+}
+
+$id('resumeGameBtn').addEventListener('click', () => {
+  const draft = resumableLocalGame();
+  if (!draft) { updateResumeGameButton(); return; }
+  const test = new Chess();
+  if (!draft.moves.every(uci => replayUciMove(test, uci))) {
+    showToast(t('Не удалось открыть партию'));
+    return;
+  }
+  state.mode = draft.mode;
+  state.playerColor = draft.color;
+  state.aiColor = oppositeColor(draft.color);
+  state.aiLevel = aiLevelById(draft.aiLevel).id;
+  state.skillLevel = draft.skill ?? aiLevelSkill(aiLevelById(state.aiLevel));
+  state.character = draft.character || null;
+  hideHomeScreen();
+  initGame(draft);
+});
+
+function checkpointLocalGame() {
+  if (!activeLocalGame) return;
+  chargeClock();
+  saveLocalGame();
+}
+
+window.addEventListener('pagehide', checkpointLocalGame);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) checkpointLocalGame();
+});
+window.addEventListener('storage', event => {
+  if (!event.key?.startsWith('chessActiveGame:')) return;
+  if (activeLocalGame && !ownsLocalGame()) {
+    resetToModeSelection();
+    showToast(t('Партия открыта в другой вкладке.'));
+  } else updateResumeGameButton();
+});
 
 /* ---- Чтение и удаление ---- */
 async function loadGameHistory() {
@@ -379,11 +499,17 @@ $id('gamesViewList').addEventListener('click', async (e) => {
    и не засчитывается в достижения (см. state.isReview в analysis.js).
    ========================================================================= */
 async function openSavedGame(rec) {
+  if (online.started && state.mode === 'online' && !state.isGameOver) {
+    showToast(t('Сначала завершите партию по ссылке'));
+    return;
+  }
   const source = new Chess();
   if (!rec.pgn || !source.load_pgn(rec.pgn)) {
     showToast(t('Не удалось открыть партию'));
     return;
   }
+  checkpointLocalGame();
+  activeLocalGame = null;
   stopTimer();
   await stopBackgroundAnalysis();
 
@@ -420,6 +546,7 @@ async function openSavedGame(rec) {
   hideHomeScreen();
   hideConnectionBanner();
   $id('chatLog').innerHTML = '';
+  state.board?.destroy();
   state.board = Chessboard('board', {
     draggable: false,
     position: game.fen(),

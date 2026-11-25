@@ -263,12 +263,12 @@ function trackAccountCreated(session) {
 // Проверка текущей сессии Supabase при загрузке страницы + подписка на её изменения
 async function initSupabaseSession() {
   const { data: { session } } = await sb.auth.getSession();
+  setLocalGameOwner(session?.user?.id || null);
   if (session) {
     trackAccountCreated(session);
     switchAchievementsUser(session.user.id);
     await fetchProfileFromSupabase(session.user.id);
     renderMenuProfile();
-    settlePendingRatedGame(); // вкладку закрыли посреди рейтинговой партии
   }
   if (session && AUTH_RECOVERY_IN_URL) openResetPasswordForm();
   handleAuthLinkError();
@@ -277,10 +277,12 @@ async function initSupabaseSession() {
   sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'PASSWORD_RECOVERY') openResetPasswordForm();
     if ((event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && session) {
+      setLocalGameOwner(session.user.id);
       trackAccountCreated(session);
       switchAchievementsUser(session.user.id);
       await fetchProfileFromSupabase(session.user.id);
     } else if (event === 'SIGNED_OUT') {
+      setLocalGameOwner(null);
       switchAchievementsUser(null);
       clearAccount();
     }

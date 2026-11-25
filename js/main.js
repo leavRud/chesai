@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSupabaseSession();
   openSharedCharacterFromUrl();
   openOnlineGameFromUrl();
+  restoreOnlineWrites();
   if (window.Achievements) window.Achievements.init();
 });
 // Регистрируем ресайз доски партии один раз на весь жизненный цикл страницы
@@ -102,6 +103,21 @@ function stopTimer() {
   state.timerLastTick = null;
 }
 
+function moveBeforeFlag(input, options) {
+  if (!state.game || state.isGameOver) return null;
+  if (clockEnabled()) {
+    chargeClock();
+    const side = state.game.turn();
+    if ((side === 'w' ? state.timeWhite : state.timeBlack) <= 0) {
+      handleTimeOut(side);
+      return null;
+    }
+  }
+  const move = state.game.move(input, options);
+  if (move) stopTimer();
+  return move;
+}
+
 function startTimer() {
   stopTimer();
   if (!state.game || state.isGameOver) return;
@@ -163,6 +179,9 @@ function hasMatingMaterial(color) {
 
 function handleTimeOut(color) {
   if (state.isGameOver) return;
+  state.isThinking = false;
+  setThinkingUI(false);
+  closePromotionPicker();
   const loser = color === 'w' ? t('Белые') : t('Чёрные');
   let text;
   let outcome = 'draw';

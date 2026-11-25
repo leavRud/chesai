@@ -6,21 +6,20 @@
    ========================================================================= */
 $id('newGameBtn').addEventListener('click', () => {
   playSound('ui');
-  if (state.game && !state.isGameOver && state.game.history().length > 0) {
-    // Рейтинговая партия, брошенная после 2 своих ходов, засчитывается поражением (history.js)
-    const own = state.game.history({ verbose: true }).filter(m => m.color === state.playerColor).length;
-    const rated = (state.mode === 'ai' || state.mode === 'characters') && getAccount()?.uid && own >= ABANDON_MIN_OWN_MOVES;
-    const question = rated
-      ? t('Начать новую игру? Незаконченная партия будет засчитана поражением. Если позиция равная, можно предложить ничью.')
-      : t('Начать новую игру? Текущая партия будет потеряна.');
+  const saved = activeLocalGame && readLocalGame(activeLocalGame.owner);
+  const draft = saved?.id === activeLocalGame?.id ? saved : null;
+  if (state.game && !state.isGameOver && (state.mode === 'online' || state.game.history().length > 0)) {
+    const question = state.mode === 'online' ? t('Выйти из партии? Это засчитается сдачей.') : replaceGameMessage(draft?.abandon);
     if (!confirm(question)) return;
   }
+  if (ownsLocalGame()) discardLocalGame(draft);
   resetToModeSelection();
 });
 $id('closeResultBtn').addEventListener('click', resetToModeSelection);
 // «Ещё раз» — новая партия с теми же режимом, цветом и сложностью.
 $id('rematchBtn').addEventListener('click', () => {
   playSound('ui');
+  if (!confirmNewLocalGame()) return;
   hideModal('resultModal');
   initGame();
 });
@@ -35,16 +34,22 @@ function resetToModeSelection() {
   closePromotionPicker();
   leaveOnlineGame();
   stopTimer();
+  stopBackgroundAnalysis();
+  state.game = null;
+  state.gameStartedAt = null;
+  activeLocalGame = null;
+  boardHasFocus = false;
   hideModal('resultModal');
   hideModal('moveDetailModal');
   showHomeScreen();
 }
 
-function initGame() {
-  // Прошлая партия брошена недоигранной — засчитываем поражение (history.js)
-  settlePendingRatedGame();
+function initGame(saved = null) {
+  stopTimer();
   closePromotionPicker();
   state.game = new Chess();
+  activeLocalGame = state.mode === 'online' ? null : claimLocalGame(saved);
+  pieceLiftedAt = null;
   state.isGameOver = false;
   state.isReview = false; // true — открыта старая партия из «Моих партий»
   state.resultText = '';
@@ -62,14 +67,14 @@ function initGame() {
   state.lastAutoReplies = [];
   state.autoReplyPending = false;
   state.pliesSinceCharacterSpoke = 0;
-  state.characterPhase = 0;
-  state.characterEloLog = [];
+  state.characterPhase = saved?.characterPhase || 0;
+  state.characterEloLog = saved?.characterEloLog || [];
   state.characterShiftAnnounce = false;
   setCharacterTyping(false);
 
   // Новая партия — старый кэш анализа больше не актуален
   clearAnalysisCache();
-  trackGoal('game_start', { mode: state.mode });
+  if (!saved) trackGoal('game_start', { mode: state.mode });
 
   $id('chatLog').innerHTML = '';
   $id('analysisBlock').classList.add('hidden');
@@ -77,7 +82,8 @@ function initGame() {
   $id('requestAnalysisBtn').textContent = t('Разобрать партию');
   hideModal('resultModal');
   hideConnectionBanner();
-  state.gameStartedAt = Date.now();
+  state.gameStartedAt = Date.now() - (saved?.elapsed || 0);
+  state.timeLimited = saved?.clock?.enabled ?? state.settings.timeLimited;
   resetDrawState(); // draws.js
   renderPlayerBars();
   renderMoveList();
@@ -98,9 +104,15 @@ function initGame() {
     snapbackSpeed: state.settings.liteMode ? 0 : 260,
     snapSpeed: state.settings.liteMode ? 0 : 90,
   };
+  state.board?.destroy();
   state.board = Chessboard('board', config);
   tapSelectedSquare = null;
+  boardFocusSquare = null;
+  $id('boardLastMove').textContent = '';
   $('#board').off('click.tap').on('click.tap', '.square-55d63', onSquareTap);
+  if (saved) replayGameMoves(saved.moves);
+  updateBoardAccessibility();
+  boardElement.querySelector('[tabindex="0"]')?.focus({ preventScroll: true });
 
   $id('chatInput').placeholder = defaultChatPlaceholder();
   const playerColorName = state.playerColor === 'w' ? t('белыми') : t('чёрными');
@@ -116,7 +128,7 @@ function initGame() {
     logSystemChat(state.character.shift
       ? t('Вы играете против персонажа «{name}». Он ваш соперник за доской и не будет подсказывать вам ходы.', { name: state.character.name })
       : t('Вы играете против персонажа «{name}» (≈{elo} Elo). Он ваш соперник за доской и не будет подсказывать вам ходы.', { name: state.character.name, elo: state.character.elo }));
-    characterReact('партия только начинается. Поздоровайся с собеседником в своём образе.', true);
+    if (!saved) characterReact('партия только начинается. Поздоровайся с собеседником в своём образе.', true);
   } else if (state.mode === 'online') {
     $id('modeLabel').textContent = t('Партия с другом по ссылке · вы играете {color}', { color: playerColorName });
     $id('chatTitle').textContent = t('Диалог с нейросетью');
@@ -130,21 +142,25 @@ function initGame() {
 
   if (!stockfish) initStockfish();
 
-  if (state.mode === 'ai' && state.game.turn() === state.aiColor) {
-    setTimeout(requestAiMove, 500);
-  } else if (state.mode === 'characters' && state.game.turn() === state.aiColor) {
-    setTimeout(requestCharacterMove, 500);
+  if (Number.isFinite(saved?.clock?.white) && Number.isFinite(saved?.clock?.black)) {
+    state.timeWhite = saved.clock.white;
+    state.timeBlack = saved.clock.black;
+    startTimer();
+  } else {
+    resetTimers();
   }
-  resetTimers();
-  startTimer();
+  if (saved && !state.isGameOver && checkGameOver()) return;
+  saveLocalGame();
+  scheduleOpponentMove(500);
 
   // Запускаем фоновый анализ стартовой позиции (Infinite Analysis либо
   // короткий анализ — в зависимости от настройки «Режим анализа»), как
   // только движок будет готов. Если следующим ходом должен ответить сам
   // движок (см. выше), searchBestMove сам корректно остановит этот фоновый
   // анализ перед поиском своего хода — конфликта не возникает.
+  const game = state.game;
   waitForEngine(4000).then((ready) => {
-    if (ready && state.game && !state.isGameOver) startBackgroundAnalysis(state.game.fen());
+    if (ready && game === state.game && !state.isGameOver) startBackgroundAnalysis(game.fen());
   });
 
   // Настройку режима анализа нельзя менять во время партии — обновляем
@@ -153,7 +169,7 @@ function initGame() {
 
   scheduleGameTour(); // подсказки к первой партии, js/onboarding.js
 
-  if (window.Achievements) {
+  if (!saved && window.Achievements) {
     window.Achievements.track('gameStart', {
       mode: state.mode,
       playerColor: state.playerColor,
@@ -163,17 +179,101 @@ function initGame() {
   }
 }
 
+function scheduleOpponentMove(delay) {
+  if (!['ai', 'characters'].includes(state.mode) || state.game.turn() !== state.aiColor) return;
+  const game = state.game;
+  const reply = state.mode === 'ai' ? requestAiMove : requestCharacterMove;
+  setTimeout(() => { if (state.game === game && !state.isGameOver) reply(); }, delay);
+}
+
+function replayUciMove(game, uci) {
+  if (typeof uci !== 'string' || !/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci)) return null;
+  return game.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] || 'q' });
+}
+
+function replayGameMoves(moves) {
+  for (const uci of moves) {
+    const move = replayUciMove(state.game, uci);
+    if (!move) break;
+    state.fenHistory.push(state.game.fen());
+    if (move.captured) trackCapture(move);
+  }
+  state.board.position(state.game.fen(), false);
+  renderMoveList();
+  renderCaptured();
+  updateStatus();
+}
+
 /* =========================================================================
    ВЗАИМОДЕЙСТВИЕ С ДОСКОЙ
    ========================================================================= */
 // Кроме перетаскивания ход можно сделать двумя нажатиями: фигура → клетка.
 // На телефоне это основной способ. Выбранная фигура хранится здесь.
 let tapSelectedSquare = null;
+let boardFocusSquare = null;
+let boardHasFocus = false;
+const boardElement = $id('board');
+const chessPieceNames = { p: 'Пешка', n: 'Конь', b: 'Слон', r: 'Ладья', q: 'Ферзь', k: 'Король' };
+
+function updateBoardAccessibility() {
+  if (!state.game) return;
+  const squares = [...boardElement.querySelectorAll('[data-square]')];
+  if (!squares.length) return;
+  const focusSquare = squares.find(el => el.dataset.square === (boardFocusSquare || (state.playerColor === 'w' ? 'e2' : 'e7'))) || squares[0];
+  for (const el of squares) {
+    const square = el.dataset.square;
+    const piece = state.game.get(square);
+    const description = piece ? t('{piece} ({color})', {
+      piece: t(chessPieceNames[piece.type]), color: t(piece.color === 'w' ? 'белые' : 'чёрные'),
+    }) : t('пусто');
+    el.parentElement.setAttribute('role', 'row');
+    el.setAttribute('role', 'gridcell');
+    el.tabIndex = el === focusSquare ? 0 : -1;
+    el.setAttribute('aria-label', `${square}, ${description}`);
+    el.setAttribute('aria-selected', String(square === tapSelectedSquare));
+  }
+  if (boardHasFocus && document.activeElement === document.body && boardElement.getClientRects().length) {
+    focusSquare.focus({ preventScroll: true });
+  }
+}
+
+new MutationObserver(updateBoardAccessibility).observe(boardElement, { childList: true, subtree: true });
+document.addEventListener('focusin', (event) => {
+  boardHasFocus = boardElement.contains(event.target);
+  if (boardHasFocus && event.target.dataset.square) {
+    boardFocusSquare = event.target.dataset.square;
+    updateBoardAccessibility();
+  }
+});
+boardElement.addEventListener('keydown', (event) => {
+  const square = event.target.dataset.square;
+  if (!square || event.altKey || event.ctrlKey || event.metaKey) return;
+  const offsets = { ArrowUp: -8, ArrowDown: 8, ArrowLeft: -1, ArrowRight: 1 };
+  if (event.key in offsets) {
+    event.preventDefault();
+    const squares = [...boardElement.querySelectorAll('[data-square]')];
+    const index = squares.indexOf(event.target);
+    const next = index + offsets[event.key];
+    if (Math.abs(offsets[event.key]) === 1 && Math.floor(index / 8) !== Math.floor(next / 8)) return;
+    squares[next]?.focus();
+  } else if (event.key === 'Escape' && tapSelectedSquare) {
+    event.preventDefault();
+    tapSelectedSquare = null;
+    clearHighlights();
+    updateBoardAccessibility();
+  } else if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    if (!canUserMoveNow()) return;
+    if (state.game.get(square)?.color === state.game.turn()) selectBoardPiece(square);
+    else playFromSelection(square);
+  }
+});
 
 function canUserMoveNow() {
   if (!state.game || state.isGameOver || state.isThinking || pendingPromotion) return false;
   if (drawState.deciding) return false; // соперник обдумывает предложение ничьей (draws.js)
   if ((state.mode === 'ai' || state.mode === 'characters' || state.mode === 'online') && state.game.turn() !== state.playerColor) return false;
+  if (state.mode === 'online' && onlineHasPending()) return false;
   return true;
 }
 
@@ -190,33 +290,37 @@ function onDrop(source, target) {
   // Отпустили на той же клетке — это нажатие, а не перетаскивание:
   // выбираем фигуру (или снимаем выбор при повторном нажатии).
   if (source === target) {
-    if (tapSelectedSquare === source) {
-      tapSelectedSquare = null;
-      clearHighlights();
-    } else {
-      tapSelectedSquare = source;
-      highlightLegalMoves(source);
-    }
+    if (canUserMoveNow()) selectBoardPiece(source);
     return 'snapback';
   }
   tapSelectedSquare = null;
   clearHighlights();
+  updateBoardAccessibility();
   if (!tryUserMove(source, target)) return 'snapback';
 }
 
 // Нажатие на клетку без своей фигуры: пустую или с фигурой соперника.
 // Нажатия на свои фигуры обрабатывает onDrop (source === target).
-function onSquareTap(e) {
+function selectBoardPiece(square) {
+  tapSelectedSquare = tapSelectedSquare === square ? null : square;
+  if (tapSelectedSquare) highlightLegalMoves(tapSelectedSquare);
+  else clearHighlights();
+  updateBoardAccessibility();
+}
+
+function playFromSelection(square) {
   if (!tapSelectedSquare || !canUserMoveNow()) return;
-  const square = $(e.currentTarget).attr('data-square');
   const piece = state.game.get(square);
   if (piece && piece.color === state.game.turn()) return;
   const from = tapSelectedSquare;
   tapSelectedSquare = null;
   clearHighlights();
+  updateBoardAccessibility();
   const isLegal = state.game.moves({ square: from, verbose: true }).some((m) => m.to === square);
   if (isLegal) tryUserMove(from, square);
 }
+
+function onSquareTap(event) { playFromSelection(event.currentTarget.dataset.square); }
 
 /* ---- Нажатие на фигуру без рывка ----
    chessboard.js начинает перетаскивание сразу при нажатии: копия фигуры
@@ -267,9 +371,27 @@ function onBoardRelease() {
 }
 
 {
-  const boardEl = $id('board');
-  boardEl.addEventListener('mousedown', onBoardPress, true);
-  boardEl.addEventListener('touchstart', onBoardPress, { capture: true, passive: true });
+  let touchTap = null;
+  boardElement.addEventListener('mousedown', onBoardPress, true);
+  boardElement.addEventListener('touchstart', (event) => {
+    const square = event.target.closest('[data-square]')?.dataset.square;
+    if (!square || event.touches.length !== 1) { touchTap = null; return; }
+    // chessboard.js handles touchend itself. Suppress the compatibility mouse
+    // sequence so tapping a figure does not select it and immediately deselect it.
+    event.preventDefault();
+    const { identifier, clientX, clientY } = event.changedTouches[0];
+    touchTap = { square, identifier, clientX, clientY };
+    onBoardPress(event);
+  }, { capture: true, passive: false });
+  window.addEventListener('touchend', (event) => {
+    const tap = touchTap;
+    touchTap = null;
+    const touch = Array.from(event.changedTouches).find(item => item.identifier === tap?.identifier);
+    if (touch && Math.hypot(touch.clientX - tap.clientX, touch.clientY - tap.clientY) <= DRAG_THRESHOLD_PX) {
+      playFromSelection(tap.square);
+    }
+  }, true);
+  window.addEventListener('touchcancel', () => { touchTap = null; });
   // На window, как и у chessboard.js: отпускание за пределами страницы тоже ловится
   window.addEventListener('mousemove', onBoardPressMove, { passive: true });
   window.addEventListener('touchmove', onBoardPressMove, { passive: true });
@@ -286,7 +408,7 @@ function isPromotionMove(from, to) {
 }
 
 function openPromotionPicker(from, to) {
-  pendingPromotion = { from, to };
+  pendingPromotion = { from, to, returnFocus: boardElement.contains(document.activeElement) };
   const color = state.game.turn();
   const picker = $id('promotionPicker');
   picker.querySelectorAll('.promotion-btn').forEach((btn) => {
@@ -297,8 +419,10 @@ function openPromotionPicker(from, to) {
 }
 
 function closePromotionPicker() {
+  const returnFocus = pendingPromotion?.returnFocus;
   pendingPromotion = null;
   $id('promotionPicker').classList.add('hidden');
+  if (returnFocus) boardElement.querySelector('[tabindex="0"]')?.focus({ preventScroll: true });
 }
 
 $id('promotionPicker').addEventListener('click', (e) => {
@@ -318,13 +442,14 @@ document.addEventListener('keydown', (e) => {
 
 // promotion — фигура для превращения ('q' | 'r' | 'b' | 'n'); без неё спросим игрока.
 function tryUserMove(from, to, promotion) {
+  if (!canUserMoveNow()) return false;
   if (!promotion && isPromotionMove(from, to)) {
     openPromotionPicker(from, to);
     return true;
   }
-  const move = state.game.move({ from, to, promotion: promotion || 'q' });
+  const move = moveBeforeFlag({ from, to, promotion: promotion || 'q' });
   if (move === null) {
-    playSound('error');
+    if (!state.isGameOver) playSound('error');
     return false;
   }
   state.fenHistory.push(state.game.fen());
@@ -385,6 +510,9 @@ function onMoveMade(move, isUserMove = false) {
     playSound('move');
   }
   state.board.position(state.game.fen());
+  $id('boardLastMove').textContent = t('Ход {move}. {from} → {to}', {
+    move: Math.floor(state.fenHistory.length / 2), from: move.from, to: move.to,
+  });
   if (move.captured) trackCapture(move);
   appendLastMoveRow();
   updateStatus();
@@ -404,7 +532,6 @@ function onMoveMade(move, isUserMove = false) {
     });
   }
   if (state.mode === 'online' && isUserMove) onlineSendMove(move);
-  if (isUserMove) markPendingRatedGame(); // брошенная партия = поражение (history.js)
   // После хода перезапускаем таймер
   if (!state.isGameOver) {
     stopTimer(); // списывает время хода тому, кто ходил
@@ -412,6 +539,8 @@ function onMoveMade(move, isUserMove = false) {
     startTimer();
   }
   const isOver = checkGameOver();
+  if (isOver && state.mode === 'online' && isUserMove) reportOnlineBoardEnd(true);
+  if (!isOver) saveLocalGame();
   drawAfterMove(move, isUserMove, isOver); // ничьи: ход — отказ, соперник может предложить (draws.js)
   // Останавливаем анализ предыдущей позиции (сохраняя результат в кэш) и,
   // если партия продолжается, тут же запускаем фоновый анализ новой позиции.
@@ -419,11 +548,7 @@ function onMoveMade(move, isUserMove = false) {
   advanceBackgroundAnalysis();
   if (isOver) return;
   resetAutoHintTimer();
-  if (state.mode === 'ai' && state.game.turn() === state.aiColor) {
-    setTimeout(requestAiMove, 350);
-  } else if (state.mode === 'characters' && state.game.turn() === state.aiColor) {
-    setTimeout(requestCharacterMove, 350);
-  }
+  scheduleOpponentMove(350);
 }
 
 function trackCapture(move) {
@@ -574,7 +699,8 @@ function updateStatus() {
       text += ` ${t('{name} думает…', { name: state.character ? state.character.name : t('Персонаж') })}`;
     }
   }
-  $id('statusText').textContent = text;
+  const status = $id('statusText');
+  if (status.textContent !== text) status.textContent = text;
   updateResignButtonLabel();
   updateTimerDisplay();
 }
@@ -582,7 +708,10 @@ function updateStatus() {
 function updateResignButtonLabel() {
   const btn = $id('resignBtn');
   $id('moveList').classList.toggle('is-reviewable', !!state.isGameOver);
-  if (state.isGameOver) { btn.disabled = true; return; }
+  if (state.isGameOver || (state.mode === 'online' && (state.game.game_over() || onlineWrites.get(online.id)?.finish))) {
+    btn.disabled = true;
+    return;
+  }
   btn.disabled = false;
   if (state.mode === 'friend') {
     const toMove = state.game.turn() === 'w' ? t('белых') : t('чёрных');
@@ -627,9 +756,10 @@ function reportAchievementGameEnd(outcome, extra = {}) {
   }, mateInfo, extra));
 }
 
-function checkGameOver() {
+function checkGameOver({ fromOnlineServer = false } = {}) {
   const game = state.game;
   if (!game.game_over()) return false;
+  if (state.mode === 'online' && !fromOnlineServer) return true;
   stopTimer();
   state.isGameOver = true;
   updateResignButtonLabel();
@@ -659,7 +789,6 @@ function checkGameOver() {
   // Партии с человеком не дают достижений: две вкладки — и победа «в кармане»
   const achvOutcome = (state.mode === 'friend' || state.mode === 'online') ? 'draw' : (outcome === 'player_win' ? 'win' : (outcome === 'character_win' ? 'loss' : 'draw'));
   reportAchievementGameEnd(achvOutcome);
-  if (state.mode === 'online') onlineReportFinish(winnerColor || 'draw', reason === 'mate' || reason === 'stalemate' ? reason : 'draw');
   // После мата доска остаётся на виду: ход доезжает, король мигает красным —
   // и только потом окно итога. Раньше оно закрывало доску сразу, и на телефоне
   // матующий ход соперника было не разглядеть.
@@ -711,13 +840,17 @@ function renderResultStats(reason) {
 
 // winner — цвет победителя ('w' | 'b') или null при ничьей: нужен для истории и PGN.
 function showResultModal(text, outcome = 'draw', reason = 'over', winner = null, { revealMs = 0 } = {}) {
-  clearPendingRatedGame(); // доиграна — брошенной не считается
+  const record = buildGameRecord({ reason, winner, summary: text });
+  if (activeLocalGame?.owner) record.uid = activeLocalGame.owner;
+  const ownsGame = ownsLocalGame();
+  if (ownsGame) removeLocalGame(activeLocalGame);
+  activeLocalGame = null;
   clearDrawOffer(); // висящее предложение ничьей больше не в силе
   const ratingEl = $id('resultRating');
   ratingEl.textContent = '';
   ratingEl.classList.add('hidden');
   const savedForGame = state.gameStartedAt;
-  saveFinishedGame(buildGameRecord({ reason, winner, summary: text })).then((change) => {
+  (ownsGame ? saveFinishedGame(record) : Promise.resolve(null)).then((change) => {
     if (!change || savedForGame !== state.gameStartedAt) return;
     ratingEl.textContent = formatRatingChange(change);
     ratingEl.dataset.trend = change.delta > 0 ? 'up' : change.delta < 0 ? 'down' : 'flat';
@@ -763,8 +896,8 @@ $id('resignBtn').addEventListener('click', () => {
   } else if (state.mode === 'characters') {
     text = t('Вы сдались. Победил(а) {name}.', { name: state.character ? state.character.name : t('персонаж') });
   } else if (state.mode === 'online') {
-    text = t('Вы сдались. Победил(а) {name}.', { name: state.onlineOpponentName || t('соперник') });
     onlineReportFinish(null, 'resign');
+    return;
   } else {
     const toMove = state.game.turn() === 'w' ? t('Белые') : t('Чёрные');
     const winner = state.game.turn() === 'w' ? t('Чёрные') : t('Белые');

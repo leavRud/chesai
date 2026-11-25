@@ -272,7 +272,8 @@
       </div>
 
       <!-- Кнопка "Играть" -->
-      <span id="homePlayText" class="home-play-text">ИГРАТЬ</span>
+      <button id="homePlayText" class="home-play-text" type="button">ИГРАТЬ</button>
+      <button id="resumeGameBtn" class="btn btn-ghost home-resume-btn hidden" type="button">Продолжить партию</button>
 
       <!-- Переключатель режимов -->
       <div class="home-mode-select" role="group" aria-label="Режим игры">
@@ -340,7 +341,9 @@
       </div>
 
       <div class="board-frame neumorphic-inset">
-        <div id="board" class="board"></div>
+        <p id="boardInstructions" class="sr-only">Стрелки перемещают фокус. Enter или пробел выбирает фигуру и клетку хода. Escape снимает выбор.</p>
+        <p id="boardLastMove" class="sr-only" role="status"></p>
+        <div id="board" class="board" role="grid" aria-label="Шахматная доска" aria-describedby="boardInstructions"></div>
         <!-- Выбор фигуры при превращении пешки (js/game.js) -->
         <div id="promotionPicker" class="promotion-picker hidden" role="dialog" aria-label="Во что превратить пешку">
           <div class="promotion-box">
@@ -370,7 +373,7 @@
 
       <div class="game-actions">
         <div class="status-row">
-          <div id="statusText" class="status-text">Загрузка партии…</div>
+          <div id="statusText" class="status-text" role="status">Загрузка партии…</div>
           <div id="thinkingIndicator" class="thinking hidden" aria-label="Нейросеть думает">
             <span></span><span></span><span></span>
           </div>
@@ -392,7 +395,7 @@
       </div>
 
       <div id="connectionBanner" class="connection-banner hidden">
-        <p id="connectionBannerText"></p>
+        <p id="connectionBannerText" role="status"></p>
         <button id="retryAiBtn" class="btn btn-danger btn-sm" type="button">Повторить</button>
       </div>
 
@@ -430,8 +433,8 @@
 
 <!-- ============ МОДАЛКА: ЦВЕТ + СЛОЖНОСТЬ ============ -->
 <div id="colorModal" class="modal-overlay hidden">
-  <div class="modal neumorphic-raised wide difficulty-modal">
-    <div class="h2" role="heading" aria-level="2">Против нейросети</div>
+  <div class="modal neumorphic-raised wide difficulty-modal" role="dialog" aria-modal="true" aria-labelledby="difficultyTitle" data-keyboard-modal>
+    <div class="h2" role="heading" aria-level="2" id="difficultyTitle">Против нейросети</div>
     <p class="modal-sub">За кого играете вы? Нейросеть возьмёт себе оставшийся цвет.</p>
 
     <div class="diff-section">
@@ -640,7 +643,7 @@
 
 <!-- ============ МОДАЛКА: ИГРА С ДРУГОМ (js/online.js) ============ -->
 <div id="friendModal" class="modal-overlay hidden">
-  <div class="modal neumorphic-raised wide friend-modal" role="dialog" aria-modal="true">
+  <div class="modal neumorphic-raised wide friend-modal" role="dialog" aria-modal="true" aria-label="Игра с другом" data-keyboard-modal>
     <div id="friendChoiceStep">
       <div class="h2" role="heading" aria-level="2">Игра с другом</div>
       <p class="modal-sub">Отправьте другу ссылку — он откроет её на телефоне или компьютере и сразу окажется за доской. Регистрация не нужна.</p>

@@ -5,8 +5,46 @@
    УТИЛИТЫ
    ========================================================================= */
 function $id(id) { return document.getElementById(id); }
-function showModal(id) { $id(id).classList.remove('hidden'); }
-function hideModal(id) { $id(id).classList.add('hidden'); }
+const modalTriggers = new WeakMap();
+function modalTabStops(el) {
+  return [...el.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex="0"]')]
+    .filter(item => item.getClientRects().length);
+}
+function showModal(id) {
+  const el = $id(id);
+  if (!el.classList.contains('hidden')) return;
+  el.classList.remove('hidden');
+  if (el.querySelector('[data-keyboard-modal]')) {
+    modalTriggers.set(el, document.activeElement);
+    modalTabStops(el)[0]?.focus();
+  }
+}
+function hideModal(id) {
+  const el = $id(id);
+  el.classList.add('hidden');
+  const trigger = modalTriggers.get(el);
+  modalTriggers.delete(el);
+  if (trigger?.getClientRects().length) trigger.focus({ preventScroll: true });
+}
+document.addEventListener('keydown', (event) => {
+  const modal = [...document.querySelectorAll('.modal-overlay:not(.hidden)')].at(-1);
+  if (!modal?.querySelector('[data-keyboard-modal]')) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    const cancel = modal.querySelector('#onlineCancelBtn');
+    if (cancel?.getClientRects().length) cancel.click();
+    else hideModal(modal.id);
+  } else if (event.key === 'Tab') {
+    const stops = modalTabStops(modal);
+    const first = stops[0];
+    const last = stops.at(-1);
+    const outside = !stops.includes(document.activeElement);
+    if (outside || document.activeElement === (event.shiftKey ? first : last)) {
+      event.preventDefault();
+      (event.shiftKey ? last : first)?.focus();
+    }
+  }
+});
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 function escapeHtml(str) {
   return String(str ?? '')

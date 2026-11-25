@@ -334,6 +334,7 @@ $id('charCardPlayBtn').addEventListener('click', () => {
     openAuthModal(t('Войдите, чтобы сыграть с персонажем «{name}»: им управляет нейросеть', { name: state.character.name }));
     return;
   }
+  if (!confirmNewLocalGame()) return;
   if (charState.fromLink && state.character.shareId) countSharedCharacterPlay(state.character.shareId);
   charState.fromLink = false;
   hideModal('characterCardModal');

@@ -264,14 +264,13 @@ function initSettingsPanel() {
     }
 });
 
-  // Язык: страница перезагружается, поэтому начатая партия будет потеряна
+  // Незаконченная партия восстанавливается на главном экране после перезагрузки.
   document.querySelectorAll('#languageRow .board-style-btn').forEach(el => {
     el.classList.toggle('is-active', el.dataset.language === uiLang);
     el.addEventListener('click', () => {
       if (el.dataset.language === uiLang) return;
       playSound('ui');
-      const inGame = state.game && !state.isGameOver;
-      if (inGame && !confirm(t('Сменить язык? Страница перезагрузится, текущая партия будет потеряна.'))) return;
+      checkpointLocalGame();
       setLanguage(el.dataset.language);
     });
   });

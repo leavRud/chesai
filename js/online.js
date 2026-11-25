@@ -11,8 +11,7 @@ const ONLINE_POLL_MS = 3000;
 const online = {
   id: null, token: null, color: null, started: false,
   channel: null, channelReady: false, pendingMessages: [],
-  pollTimer: null, syncing: false,
-  queue: Promise.resolve(), // ходы и конец партии уходят на сервер строго по очереди
+  pollTimer: null, syncing: false, revision: 0, confirmedPly: 0,
 };
 let onlineChosenColor = 'r';
 
@@ -48,7 +47,7 @@ function setOnlineUrl(id) {
 }
 
 async function fetchOnlineGame(id) {
-  const { data, error } = await sb.rpc('get_online_game', { p_id: id });
+  const { data, error } = await onlineRpc('get_online_game', { p_id: id });
   if (error) throw error;
   return data?.[0] || null;
 }
@@ -56,11 +55,15 @@ async function fetchOnlineGame(id) {
 /* ---------- Realtime ---------- */
 function connectOnlineChannel(id) {
   disconnectOnlineChannel();
+  const revision = online.revision;
   online.channelReady = false;
   online.channel = sb.channel(`online-${id}`, { config: { broadcast: { self: false } } })
-    .on('broadcast', { event: 'msg' }, ({ payload }) => onOnlineMessage(payload))
+    .on('broadcast', { event: 'msg' }, ({ payload }) => {
+      if (revision === online.revision && payload) syncOnlineFromServer();
+    })
     .subscribe((status) => {
-      if (status !== 'SUBSCRIBED') return;
+      if (revision !== online.revision) return;
+      if (status !== 'SUBSCRIBED') { online.channelReady = false; return; }
       online.channelReady = true;
       const queued = online.pendingMessages.splice(0);
       queued.forEach(sendOnlineMessage);
@@ -80,18 +83,6 @@ function sendOnlineMessage(payload) {
   online.channel.send({ type: 'broadcast', event: 'msg', payload }).catch(() => {});
 }
 
-function onOnlineMessage(msg) {
-  if (!msg || typeof msg !== 'object') return;
-  if (msg.type === 'move' && state.mode === 'online' && state.game && !state.isGameOver) {
-    const expected = state.game.history().length + 1;
-    if (msg.ply === expected && /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(msg.uci)) applyRemoteMove(msg.uci);
-    else if (msg.ply > expected) syncOnlineFromServer();
-  } else {
-    // joined / finish — подробности берём из базы, сообщению не доверяем
-    syncOnlineFromServer();
-  }
-}
-
 function startOnlinePolling() {
   stopOnlinePolling();
   online.pollTimer = setInterval(() => syncOnlineFromServer(), ONLINE_POLL_MS);
@@ -101,107 +92,221 @@ function stopOnlinePolling() {
   online.pollTimer = null;
 }
 
+/* ---------- Очередь ходов и завершения ---------- */
+const ONLINE_WRITES_PREFIX = 'chessOnlineWrites:';
+const onlineWrites = new Map();
+let onlineRetryTimer = null;
+
+function restoreOnlineWrites() {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (!key.startsWith(ONLINE_WRITES_PREFIX)) continue;
+      const id = key.slice(ONLINE_WRITES_PREFIX.length);
+      try {
+        const write = JSON.parse(localStorage.getItem(key));
+        if (ONLINE_ID_RE.test(id) && write?.token && (write.move || write.finish) && !onlineWrites.has(id)) {
+          onlineWrites.set(id, { ...write, id, sending: false });
+        }
+      } catch (e) { /* Одна повреждённая запись не мешает восстановить другие. */ }
+    }
+  } catch (e) { /* При закрытом хранилище очередь работает в памяти. */ }
+  if (onlineWrites.size && !onlineRetryTimer) onlineRetryTimer = setInterval(retryOnlineWrites, ONLINE_POLL_MS);
+  retryOnlineWrites();
+}
+
+function saveOnlineWrites(write) {
+  const { id, token, move, finish } = write;
+  const pending = move || finish;
+  if (!pending) onlineWrites.delete(id);
+  try {
+    const key = ONLINE_WRITES_PREFIX + id;
+    if (pending) localStorage.setItem(key, JSON.stringify({ token, move, finish }));
+    else localStorage.removeItem(key);
+  } catch (e) { /* Переподключение продолжит отправку из памяти. */ }
+  if (onlineWrites.size && !onlineRetryTimer) onlineRetryTimer = setInterval(retryOnlineWrites, ONLINE_POLL_MS);
+  if (!onlineWrites.size && onlineRetryTimer) {
+    clearInterval(onlineRetryTimer);
+    onlineRetryTimer = null;
+  }
+}
+
+function onlineHasPending() {
+  const write = onlineWrites.get(online.id);
+  return !!(write?.move || write?.finish);
+}
+
+function onlineWriteForCurrentGame() {
+  let write = onlineWrites.get(online.id);
+  if (!write) {
+    write = { id: online.id, token: online.token, move: null, finish: null, sending: false };
+    onlineWrites.set(write.id, write);
+  }
+  return write;
+}
+
+function retryOnlineWrites() {
+  for (const write of onlineWrites.values()) flushOnlineWrites(write);
+}
+
+window.addEventListener('online', () => {
+  retryOnlineWrites();
+  if (online.id) syncOnlineFromServer();
+  else if (!state.game && !pendingOnlineInvite) openOnlineGameFromUrl();
+});
+
+async function onlineRpc(name, params) {
+  const request = sb.rpc(name, params);
+  if (typeof request.abortSignal === 'function' && typeof AbortSignal.timeout === 'function') {
+    return request.abortSignal(AbortSignal.timeout(8000));
+  }
+  return request;
+}
+
+function showOnlineWriteStatus(text) {
+  const status = $id('connectionBannerText');
+  if (status.textContent !== text) status.textContent = text;
+  $id('connectionBanner').classList.remove('hidden');
+}
+
+async function flushOnlineWrites(write) {
+  if (write.sending) return;
+  write.sending = true;
+  const { id, token } = write;
+  try {
+    if (write.move) {
+      const { ply, uci } = write.move;
+      const { error } = await onlineRpc('online_move', { p_id: id, p_token: token, p_ply: ply, p_move: uci });
+      if (error) {
+        const code = rpcErrorCode(error);
+        if (!['OUT_OF_SYNC', 'NOT_YOUR_TURN', 'NOT_ACTIVE', 'BAD_MOVE', 'BAD_TOKEN', 'NOT_FOUND'].includes(code)) throw error;
+        const row = await fetchOnlineGame(id);
+        const applied = row?.moves?.[ply - 1] === uci;
+        if (!applied && write.finish?.reason !== 'resign') write.finish = null;
+        if (row?.status !== 'active' || code === 'BAD_TOKEN') write.finish = null;
+        if (applied && online.id === id) {
+          online.confirmedPly = Math.max(online.confirmedPly, ply);
+          sendOnlineMessage({ type: 'move' });
+        } else if (online.id === id && row?.status === 'active') {
+          showToast(t('Сервер отклонил ход. Позиция обновлена.'));
+        }
+      } else if (online.id === id) {
+        online.confirmedPly = Math.max(online.confirmedPly, ply);
+        sendOnlineMessage({ type: 'move' });
+      }
+      write.move = null;
+      // Если закрыли вкладку между сохранением хода и отправкой сдачи,
+      // после перезапуска повторяем только оставшуюся операцию.
+      saveOnlineWrites(write);
+    }
+    if (write.finish) {
+      const { result, reason } = write.finish;
+      const { error } = await onlineRpc('online_finish', { p_id: id, p_token: token, p_result: result, p_reason: reason });
+      if (error && !['NOT_FOUND', 'BAD_TOKEN'].includes(rpcErrorCode(error))) throw error;
+      write.finish = null;
+      saveOnlineWrites(write);
+      if (!error && online.id === id) sendOnlineMessage({ type: 'finish' });
+    }
+    if (online.id === id) {
+      hideConnectionBanner();
+      syncOnlineFromServer();
+    }
+  } catch (e) {
+    if (online.id === id) showOnlineWriteStatus(t('Связь прервалась. Повторим отправку автоматически.'));
+  } finally {
+    write.sending = false;
+    saveOnlineWrites(write);
+  }
+}
+
+function onlineSendMove(move) {
+  const write = onlineWriteForCurrentGame();
+  write.move = { ply: state.game.history().length, uci: uciOf(move) };
+  saveOnlineWrites(write);
+  flushOnlineWrites(write);
+}
+
+function onlineReportFinish(result, reason) {
+  if (!online.id) return;
+  const write = onlineWriteForCurrentGame();
+  if (write.finish) return;
+  write.finish = { result: result || 'draw', reason };
+  saveOnlineWrites(write);
+  updateResignButtonLabel();
+  showOnlineWriteStatus(t('Подтверждаем завершение партии…'));
+  flushOnlineWrites(write);
+}
+
+function reportOnlineBoardEnd(allowPendingMove = false) {
+  if (!state.game.game_over() || (!allowPendingMove && onlineHasPending())) return;
+  const winner = state.game.in_checkmate() ? oppositeColor(state.game.turn()) : null;
+  onlineReportFinish(winner, winner ? 'mate' : state.game.in_stalemate() ? 'stalemate' : 'draw');
+}
+
 /* ---------- Сверка с базой ---------- */
 async function syncOnlineFromServer() {
   if (!online.id || online.syncing) return;
+  const id = online.id;
+  const revision = online.revision;
+  const game = state.game;
   online.syncing = true;
   try {
-    const row = await fetchOnlineGame(online.id);
-    if (!row) return;
-    // Ещё ждём соперника: он принял приглашение — начинаем
+    const row = await fetchOnlineGame(id);
+    if (revision !== online.revision || online.id !== id || !row) return;
     if (!online.started) {
       if (row.status !== 'waiting') startOnlineGame(row);
       return;
     }
-    const local = state.game.history({ verbose: true }).map(uciOf);
+    if (state.mode !== 'online' || state.game !== game) return;
     const remote = row.moves || [];
-    const samePrefix = local.every((m, i) => i >= remote.length || remote[i] === m);
-    if (!samePrefix) {
+    if (remote.length < online.confirmedPly) return;
+    online.confirmedPly = remote.length;
+    const local = state.game.history({ verbose: true }).map(uciOf);
+    const pendingMove = onlineWrites.get(id)?.move;
+    const hasOptimisticMove = row.status === 'active' && pendingMove?.ply === local.length && local.at(-1) === pendingMove.uci;
+    const samePrefix = remote.slice(0, local.length).every((move, i) => move === local[i]);
+    if (!samePrefix || (remote.length < local.length && !hasOptimisticMove)) {
       rebuildOnlineGame(remote);
-    } else if (remote.length > local.length) {
+    } else {
       for (const uci of remote.slice(local.length)) {
         if (!applyRemoteMove(uci)) { rebuildOnlineGame(remote); break; }
       }
     }
-    if (row.status === 'finished' && !state.isGameOver) finishFromServer(row);
-    if (row.status === 'finished') stopOnlinePolling();
-    else applyOnlineDrawOffer(row.draw_offer_by || null); // предложение ничьей (draws.js)
+    if (row.status === 'finished') {
+      const write = onlineWrites.get(id);
+      if (write) {
+        write.move = null;
+        write.finish = null;
+        saveOnlineWrites(write);
+      }
+      hideConnectionBanner();
+      if (!state.isGameOver) finishFromServer(row);
+      stopOnlinePolling();
+    } else {
+      applyOnlineDrawOffer(row.draw_offer_by || null);
+      reportOnlineBoardEnd();
+    }
   } catch (e) {
-    // Нет сети — попробуем на следующем такте
+    // Нет сети — попробуем на следующем такте.
   } finally {
-    online.syncing = false;
+    if (revision === online.revision) online.syncing = false;
   }
 }
 
-/* ---------- Ходы ---------- */
 function applyRemoteMove(uci) {
-  const move = state.game.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] || 'q' });
+  const move = replayUciMove(state.game, uci);
   if (!move) return false;
   state.fenHistory.push(state.game.fen());
   onMoveMade(move, false);
   return true;
 }
 
-// Сыграть ходы молча (продолжение партии после перезагрузки)
-function replayOnlineMoves(moves) {
-  for (const uci of moves) {
-    const move = state.game.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] || 'q' });
-    if (!move) break;
-    state.fenHistory.push(state.game.fen());
-    if (move.captured) trackCapture(move);
-  }
-  state.board.position(state.game.fen(), false);
-  renderMoveList();
-  renderCaptured();
-  updateStatus();
-}
-
 function rebuildOnlineGame(moves) {
+  closePromotionPicker();
   state.game = new Chess();
   state.fenHistory = [state.game.fen()];
   state.capturedByWhite = [];
   state.capturedByBlack = [];
-  replayOnlineMoves(moves);
-}
-
-// Вызывается из onMoveMade после своего хода.
-function onlineSendMove(move) {
-  const ply = state.game.history().length;
-  const uci = uciOf(move);
-  const id = online.id;
-  const token = online.token;
-  online.queue = online.queue.then(async () => {
-    for (let attempt = 0; attempt < 4; attempt++) {
-      const { error } = await sb.rpc('online_move', { p_id: id, p_token: token, p_ply: ply, p_move: uci });
-      if (!error) {
-        hideConnectionBanner();
-        sendOnlineMessage({ type: 'move', ply, uci });
-        return;
-      }
-      const code = rpcErrorCode(error);
-      if (code === 'OUT_OF_SYNC' || code === 'NOT_YOUR_TURN' || code === 'NOT_ACTIVE') {
-        await syncOnlineFromServer();
-        return;
-      }
-      if (attempt === 0) showConnectionBanner(t('Ход не дошёл до соперника — проверяем связь…'));
-      await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
-    }
-    showConnectionBanner(t('Нет связи с сервером. Ход отправится, когда страница снова увидит интернет.'));
-    syncOnlineFromServer();
-  });
-}
-
-// Конец партии: мат, пат, ничья (видят оба) или сдача.
-function onlineReportFinish(result, reason) {
-  if (!online.id) return;
-  const id = online.id;
-  const token = online.token;
-  stopOnlinePolling();
-  online.queue = online.queue.then(async () => {
-    const { error } = await sb.rpc('online_finish', { p_id: id, p_token: token, p_result: result || 'draw', p_reason: reason });
-    if (!error) sendOnlineMessage({ type: 'finish' });
-  });
-  forgetOnlineSeat(id);
+  replayGameMoves(moves);
 }
 
 // Соперник сдался, согласились на ничью (или конец партии, который мы пропустили).
@@ -211,11 +316,11 @@ function finishFromServer(row) {
     finishDrawByAgreement(); // draws.js
     return;
   }
-  if (row.reason !== 'resign') {
-    if (!checkGameOver()) stopOnlinePolling();
+  const winner = row.result;
+  if (row.reason !== 'resign' && checkGameOver({ fromOnlineServer: true })) {
+    forgetOnlineSeat(online.id);
     return;
   }
-  const winner = row.result;
   const iWon = winner === state.playerColor;
   const name = state.onlineOpponentName || t('Соперник');
   state.isGameOver = true;
@@ -224,16 +329,21 @@ function finishFromServer(row) {
   stopBackgroundAnalysis();
   reportAchievementGameEnd('draw');
   forgetOnlineSeat(online.id);
-  showResultModal(iWon ? t('{name} сдаётся. Вы победили!', { name }) : t('Вы сдались.'),
-    iWon ? 'player_win' : 'character_win', 'resign', winner);
+  const outcome = winner === 'draw' ? 'draw' : iWon ? 'player_win' : 'character_win';
+  const text = row.reason === 'resign'
+    ? (iWon ? t('{name} сдаётся. Вы победили!', { name }) : t('Вы сдались.'))
+    : t('Партия окончена.');
+  showResultModal(text, outcome, row.reason, winner === 'draw' ? null : winner);
 }
 
 /* ---------- Ничья по соглашению ----------
    Предложение хранится в партии на сервере: сообщение Realtime только
    будит соперника, а что на самом деле предложено — он берёт из базы. */
 async function onlineDrawRpc(fn, args) {
-  if (!online.id) return null;
+  if (!online.id || onlineHasPending()) return null;
+  const revision = online.revision;
   const { data, error } = await sb.rpc(fn, { p_id: online.id, p_token: online.token, ...args });
+  if (revision !== online.revision) return null;
   if (error) {
     if (rpcErrorCode(error) === 'TOO_EARLY') showToast(t('Ничью можно предложить с 10-го хода'));
     console.warn('Ничья в партии по ссылке:', error.message);
@@ -248,6 +358,7 @@ function onlineAnswerDraw(accept) { return onlineDrawRpc('online_answer_draw', {
 
 /* ---------- Начало партии ---------- */
 function startOnlineGame(row) {
+  checkpointLocalGame();
   online.started = true;
   hideModal('friendModal');
   hideModal('onlineJoinModal');
@@ -258,25 +369,42 @@ function startOnlineGame(row) {
   state.onlineOpponentName = displayOpponentName(iAmCreator ? row.joiner_name : row.creator_name);
   hideHomeScreen();
   initGame();
-  replayOnlineMoves(row.moves || []);
+  const moves = row.moves || [];
+  online.confirmedPly = moves.length;
+  const pending = onlineWrites.get(online.id);
+  const pendingMove = pending?.move;
+  replayGameMoves(row.status === 'active' && pendingMove?.ply === moves.length + 1 ? [...moves, pendingMove.uci] : moves);
   if (row.status === 'finished') {
     finishFromServer(row);
     return;
   }
   applyOnlineDrawOffer(row.draw_offer_by || null);
-  if (!checkGameOver()) startOnlinePolling();
+  startOnlinePolling();
+  if (pending) {
+    showOnlineWriteStatus(t('Связь прервалась. Повторим отправку автоматически.'));
+    updateResignButtonLabel();
+    flushOnlineWrites(pending);
+  } else reportOnlineBoardEnd();
 }
 
 // Уходим из партии (новая игра, главный экран). Незаконченная партия — сдача.
 function leaveOnlineGame() {
   if (!online.id) return;
-  if (state.mode === 'online' && state.game && !state.isGameOver) onlineReportFinish(null, 'resign');
+  if (online.started && state.mode === 'online' && state.game && !state.isGameOver && !state.game.game_over()) {
+    onlineReportFinish(null, 'resign');
+  }
+  detachOnlineGame();
+}
+
+function detachOnlineGame() {
   stopOnlinePolling();
-  const id = online.id;
-  // Даём сообщению о сдаче уйти, потом закрываем канал
-  online.queue.then(() => { if (online.id !== id) return; disconnectOnlineChannel(); });
+  disconnectOnlineChannel();
+  online.revision++;
   online.id = null;
+  online.token = null;
   online.started = false;
+  online.syncing = false;
+  online.confirmedPly = 0;
   setOnlineUrl(null);
 }
 
@@ -308,6 +436,7 @@ function showOnlineWaiting(id) {
   $id('onlineLinkInput').value = onlineGameUrl(id);
   showFriendStep('wait');
   showModal('friendModal');
+  $id('onlineLinkInput').focus({ preventScroll: true });
 }
 
 document.querySelectorAll('#onlineColorRow .color-choice-btn').forEach(btn => {
@@ -320,6 +449,7 @@ document.querySelectorAll('#onlineColorRow .color-choice-btn').forEach(btn => {
 
 $id('friendLocalBtn').addEventListener('click', () => {
   playSound('ui');
+  if (!confirmNewLocalGame()) return;
   hideModal('friendModal');
   state.mode = 'friend';
   state.playerColor = 'w';
@@ -384,22 +514,30 @@ $id('onlineCopyBtn').addEventListener('click', async () => {
 $id('onlineCancelBtn').addEventListener('click', () => {
   playSound('ui');
   if (online.id) forgetOnlineSeat(online.id);
-  stopOnlinePolling();
-  disconnectOnlineChannel();
-  online.id = null;
-  setOnlineUrl(null);
+  detachOnlineGame();
   hideModal('friendModal');
 });
 
 /* ---------- Приглашение по ссылке ---------- */
 let pendingOnlineInvite = null;
+let onlineOpenRetry = null;
 
-async function openOnlineGameFromUrl() {
+async function openOnlineGameFromUrl(retry = false) {
+  clearTimeout(onlineOpenRetry);
+  if (retry && (state.game || online.id)) return;
   const id = new URLSearchParams(location.search).get('g');
   if (id === null) return;
   if (!ONLINE_ID_RE.test(id)) { setOnlineUrl(null); showToast(t('Ссылка на партию повреждена')); return; }
   let row;
-  try { row = await fetchOnlineGame(id); } catch (e) { showToast(t('Не удалось открыть партию. Проверьте интернет')); return; }
+  const game = state.game;
+  try {
+    row = await fetchOnlineGame(id);
+  } catch (e) {
+    if (!retry) showToast(t('Не удалось открыть партию. Проверьте интернет'));
+    if (readOnlineSeat(id)) onlineOpenRetry = setTimeout(() => openOnlineGameFromUrl(true), ONLINE_POLL_MS);
+    return;
+  }
+  if (new URLSearchParams(location.search).get('g') !== id || online.id || state.game !== game) return;
   if (!row) { setOnlineUrl(null); showToast(t('Партия по ссылке не найдена')); return; }
 
   const seat = readOnlineSeat(id);
