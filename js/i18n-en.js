@@ -3,6 +3,7 @@
 'use strict';
 
 const I18N_EN = {
+  'Возможно, вы имели в виду «{name}»?': 'Did you mean “{name}”?',
   // ---- Страница и главный экран ----
   "Шахматы онлайн против нейросети и Stockfish — chesai": "Play chess online against AI and Stockfish — chesai",
   "Загрузка": "Loading",
