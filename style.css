@@ -82,11 +82,15 @@ html.dark .msg-assistant { box-shadow: var(--sd-sm); }
 :root[data-accent="maroon"] { --accent: #7B3B3E; --accent-dark: #5E2C2E; --accent-soft: rgba(123,59,62,0.16);  --gold: #C08A56; --gold-soft: rgba(192,138,86,0.22); --achv-modal-bg: rgba(35, 26, 26, 0.93);}
 :root[data-accent="blue"]   { --accent: #2B5FA8; --accent-dark: #204A85; --accent-soft: rgba(43,95,168,0.16);  --gold: #4D7FC9; --gold-soft: rgba(77,127,201,0.22); --achv-modal-bg: rgba(24, 28, 40, 0.93);}
 :root[data-accent="green"]  { --accent: #2F7D4F; --accent-dark: #235F3C; --accent-soft: rgba(47,125,79,0.16);  --gold: #4FA070; --gold-soft: rgba(79,160,112,0.22); --achv-modal-bg: rgba(24, 34, 28, 0.93)}
+:root[data-accent="purple"] { --accent: #7653A9; --accent-dark: #583B82; --accent-soft: rgba(118,83,169,0.16); --gold: #9B75D5; --gold-soft: rgba(155,117,213,0.22); --achv-modal-bg: rgba(29, 24, 39, 0.93); }
+:root[data-accent="rose"]   { --accent: #9D5375; --accent-dark: #7B3D5B; --accent-soft: rgba(157,83,117,0.16); --gold: #BF7399; --gold-soft: rgba(191,115,153,0.22); --achv-modal-bg: rgba(37, 25, 32, 0.93); }
 
 html.dark[data-accent="gold"]   { --accent: #d4a547; --gold: #d4a547; --achv-modal-bg-dark: rgba(20, 18, 14, 0.95);}
 html.dark[data-accent="maroon"] { --accent: #c9707a; --gold: #c9707a; --achv-modal-bg-dark: rgba(26, 18, 18, 0.96);}
 html.dark[data-accent="blue"]   { --accent: #5b8fd9; --gold: #5b8fd9; --achv-modal-bg-dark: rgba(17, 18, 26, 0.96);}
 html.dark[data-accent="green"]  { --accent: #5fbf85; --gold: #5fbf85; --achv-modal-bg-dark: rgba(15, 20, 17, 0.96);}
+html.dark[data-accent="purple"] { --accent: #a77bea; --gold: #a77bea; --achv-modal-bg-dark: rgba(20, 16, 28, 0.96);}
+html.dark[data-accent="rose"]   { --accent: #d98caf; --gold: #d98caf; --achv-modal-bg-dark: rgba(26, 17, 22, 0.96);}
 
 /* ===== ОФОРМЛЕНИЕ ДОСКИ ===== */
 :root[data-board-style="classic"] { --board-light: #F0E7D8; --board-dark: #9C7B54; }
@@ -1416,7 +1420,7 @@ html:not([data-home-bg="snow"]) .loading-ring { display: none; }
   color: var(--accent);
   font-size: 44px;
   font-weight: bold;
-  text-shadow: 0 0 12px rgba(173, 138, 78, 0.5);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 50%, transparent);
   z-index: 2;
 }
 .home-sputnik {
@@ -1866,6 +1870,8 @@ html.dark .settings-panel { background: rgba(10, 10, 10, 0.78); }
 .accent-maroon { background: #7B3B3E; }
 .accent-blue { background: #2B5FA8; }
 .accent-green { background: #2F7D4F; }
+.accent-purple { background: #7653A9; }
+.accent-rose { background: #9D5375; }
 
 /* Оформление доски */
 .board-style-row { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -2186,8 +2192,8 @@ html.dark .settings-panel { background: rgba(10, 10, 10, 0.78); }
   opacity: 1;
   transition: opacity 1.5s ease-out;
 }
-.square-55d63.last-move-src::before { background: rgba(173, 138, 78, 0.3); }
-.square-55d63.last-move-dst::before { background: rgba(173, 138, 78, 0.5); }
+.square-55d63.last-move-src::before { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.square-55d63.last-move-dst::before { background: color-mix(in srgb, var(--accent) 50%, transparent); }
 .square-55d63.last-move-src.is-fading::before,
 .square-55d63.last-move-dst.is-fading::before { opacity: 0; }
 
@@ -2475,8 +2481,8 @@ html.dark .settings-panel { background: rgba(10, 10, 10, 0.78); }
 .move-detail-loading .tour-loader {
   --tour-cell: rgba(244, 239, 228, 0.06);
   --tour-cell-dark: rgba(244, 239, 228, 0.14);
-  --tour-visited: rgba(212, 165, 71, 0.38);
-  --tour-trail: #d4a547;
+  --tour-visited: color-mix(in srgb, var(--accent) 38%, transparent);
+  --tour-trail: var(--accent);
   --tour-knight: #F4EFE4;
   --tour-text: rgba(244, 239, 228, 0.6);
   --tour-percent: #F4EFE4;

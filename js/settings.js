@@ -36,6 +36,8 @@ const HOME_KNIGHT_SRC = {
   maroon: 'assests/knight-red.webp',
   blue: 'assests/knight-blue.webp',
   green: 'assests/knight-green.webp',
+  purple: 'assests/knight-purple.png',
+  rose: 'assests/knight-rose.png?v=2',
 };
 
 // Конь другого цвета грузится только при смене акцента — и меняется с
@@ -64,8 +66,11 @@ function applyAccent(name) {
   document.querySelectorAll('.accent-swatch').forEach(el => {
     el.classList.toggle('is-active', el.dataset.accent === name);
   });
+  window.__homeKnightSrc = HOME_KNIGHT_SRC[name] || HOME_KNIGHT_SRC.gold;
   const knightImg = $id('homeKnightImg');
-  if (knightImg) knightImg.src = HOME_KNIGHT_SRC[name] || HOME_KNIGHT_SRC.gold;
+  if (knightImg) knightImg.src = window.__homeKnightSrc;
+  const tourHero = document.querySelector('.tour-hero');
+  if (tourHero?.getAttribute('src')) tourHero.src = window.__homeKnightSrc;
   applyFaviconAccent(name);
 }
 
@@ -79,6 +84,8 @@ const FAVICON_ACCENT_RGB = {
   maroon: [0xc9, 0x70, 0x7a],
   blue: [0x5b, 0x8f, 0xd9],
   green: [0x5f, 0xbf, 0x85],
+  purple: [0xa7, 0x7b, 0xea],
+  rose: [0xd9, 0x8c, 0xaf],
 };
 const FAVICON_SRC = 'assests/icon-192.png';
 const FAVICON_SIZE = 64; // запас под экраны с высокой плотностью пикселей

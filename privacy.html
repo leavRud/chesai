@@ -23,6 +23,7 @@
   try {
     var t = localStorage.getItem('chessTheme');
     if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark');
+    document.documentElement.setAttribute('data-accent', localStorage.getItem('chessAccent') || 'gold');
   } catch (e) {}
 })();
 </script>

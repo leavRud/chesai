@@ -192,7 +192,7 @@
     if (theme === 'dark') document.documentElement.classList.add('dark');
     var accent = localStorage.getItem('chessAccent') || 'gold';
     document.documentElement.setAttribute('data-accent', accent);
-    window.__homeKnightSrc = { gold: 'assests/knight.webp', maroon: 'assests/knight-red.webp', blue: 'assests/knight-blue.webp', green: 'assests/knight-green.webp' }[accent] || 'assests/knight.webp';
+    window.__homeKnightSrc = { gold: 'assests/knight.webp', maroon: 'assests/knight-red.webp', blue: 'assests/knight-blue.webp', green: 'assests/knight-green.webp', purple: 'assests/knight-purple.png', rose: 'assests/knight-rose.png?v=2' }[accent] || 'assests/knight.webp';
     var boardStyle = localStorage.getItem('chessBoardStyle') || 'classic';
     document.documentElement.setAttribute('data-board-style', boardStyle);
     // Лёгкий режим. Пока его не выбирали: включён, если раньше выключали анимации
@@ -1107,6 +1107,8 @@
               <span class="accent-swatch accent-maroon" data-accent="maroon" title="Бордовый"></span>
               <span class="accent-swatch accent-blue" data-accent="blue" title="Синий"></span>
               <span class="accent-swatch accent-green" data-accent="green" title="Зелёный"></span>
+              <span class="accent-swatch accent-purple" data-accent="purple" title="Фиолетовый"></span>
+              <span class="accent-swatch accent-rose" data-accent="rose" title="Пыльно-розовый"></span>
             </div>
           </div>
 
