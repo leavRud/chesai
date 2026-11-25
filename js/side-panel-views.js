@@ -284,7 +284,7 @@ async function initSupabaseSession() {
       switchAchievementsUser(null);
       clearAccount();
     }
-    if (event === 'SIGNED_IN') refreshChatQuota().then(() => { resumePendingBuy(); resumePendingSharedCharacter(); syncPushSubscription(); });
+    if (event === 'SIGNED_IN') refreshChatQuota().then(() => { handlePaymentParams(); resumePendingBuy(); resumePendingSharedCharacter(); syncPushSubscription(); });
     if (event === 'SIGNED_OUT') refreshChatQuota().then(renderPushToggle);
     renderMenuProfile();
     if (typeof getCurrentView === 'function' && getCurrentView() === 'profile') renderProfileView();

@@ -81,6 +81,34 @@ $id('profileBuyBtn')?.addEventListener('click', () => { playSound('ui'); openBuy
 // Пакеты и цены приходят с сервера (loadPacks из js/packs.js), здесь их нет.
 let buyPacks = [];
 let buyPack = null;
+let paymentCreating = false;
+let paymentAttempt = null;
+let checkingPayment = null;
+const PAYMENT_ID_RE = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+
+function paymentKey(order) { return `chessPayment:${order}`; }
+
+function rememberPayment(order, payment) {
+  try { localStorage.setItem(paymentKey(order), payment); } catch (e) { /* Try session storage too. */ }
+  try { sessionStorage.setItem(paymentKey(order), payment); } catch (e) { /* The return page can still show an unknown status. */ }
+}
+
+function readPayment(order) {
+  try {
+    const payment = localStorage.getItem(paymentKey(order));
+    if (payment) return payment;
+  } catch (e) { /* Try session storage. */ }
+  try { return sessionStorage.getItem(paymentKey(order)); } catch (e) { return null; }
+}
+
+function finishPaymentReturn(order) {
+  try { localStorage.removeItem(paymentKey(order)); } catch (e) { /* Storage unavailable. */ }
+  try { sessionStorage.removeItem(paymentKey(order)); } catch (e) { /* Storage unavailable. */ }
+  const params = new URLSearchParams(location.search);
+  if (params.get('paid') !== order) return;
+  params.delete('paid');
+  history.replaceState(history.state, '', location.pathname + (params.size ? `?${params}` : '') + location.hash);
+}
 
 function renderBuyPacks() {
   const box = $id('buyPacks');
@@ -148,19 +176,25 @@ async function openBuyModal(packId = buyPack) {
       return;
     }
   }
-  payBtn.disabled = false;
+  payBtn.disabled = paymentCreating;
   selectBuyPack(packId);
 }
 
 async function startPayment() {
+  if (paymentCreating || !buyPack) return;
+  paymentCreating = true;
+  if (paymentAttempt?.pack !== buyPack) paymentAttempt = { pack: buyPack, order: crypto.randomUUID() };
+  const { pack, order } = paymentAttempt;
   const btn = $id('buyPayBtn');
   const errorEl = $id('buyError');
   btn.disabled = true;
   btn.textContent = t('Переходим к оплате…');
   errorEl.classList.add('hidden');
-  const { data, error } = await sb.functions.invoke('payments/create', { body: { pack_id: buyPack } });
+  const { data, error } = await sb.functions.invoke('payments/create', { body: { pack_id: pack, order_id: order } });
   if (!error && data?.confirmation_url) {
-    trackGoal('pay_click', { pack: buyPack });
+    if (PAYMENT_ID_RE.test(data.payment_id)) rememberPayment(order, data.payment_id);
+    paymentAttempt = null;
+    trackGoal('pay_click', { pack });
     window.location.href = data.confirmation_url;
     return;
   }
@@ -172,6 +206,7 @@ async function startPayment() {
       ? t('Сессия истекла — войдите заново.')
       : t('Не удалось перейти к оплате. Попробуйте ещё раз через минуту.');
   errorEl.classList.remove('hidden');
+  paymentCreating = false;
   btn.disabled = false;
   selectBuyPack(buyPack);
 }
@@ -186,20 +221,67 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('.chat-quota-buy')) openBuyModal();
 });
 
-// Ссылки «Купить» со страницы тарифов (?buy=q50) и возврат с оплаты (?paid=1).
+// Ссылки со страницы тарифов и возврат из ЮKassa.
 function handlePaymentParams() {
   const params = new URLSearchParams(location.search);
   const buy = params.get('buy');
   const paid = params.get('paid');
-  if (!buy && !paid) return;
-  history.replaceState(null, '', location.pathname);
-  if (paid) {
-    trackGoal('payment_return');
-    showToast(t('Спасибо за оплату! Вопросы начислятся в течение минуты'));
-    setTimeout(refreshChatQuota, 5000);
+  if (buy) {
+    params.delete('buy');
+    history.replaceState(history.state, '', location.pathname + (params.size ? `?${params}` : '') + location.hash);
+    openBuyModal(buy);
   }
-  if (buy) openBuyModal(buy);
+  if (paid !== null) checkPaymentReturn(paid);
 }
+
+async function checkPaymentReturn(order) {
+  if (checkingPayment === order) return;
+  const payment = PAYMENT_ID_RE.test(order) && readPayment(order);
+  if (!payment || !PAYMENT_ID_RE.test(payment)) {
+    finishPaymentReturn(order);
+    showToast(t('Статус оплаты не удалось определить. Проверьте баланс в профиле.'));
+    return;
+  }
+  if (!chatSignedIn) {
+    showToast(t('Войдите в аккаунт, чтобы проверить статус оплаты.'));
+    return;
+  }
+  checkingPayment = order;
+  try {
+    showToast(t('Проверяем статус оплаты…'));
+    let sawPending = false;
+    for (const delay of [0, 2000, 4000, 8000]) {
+      if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+      if (new URLSearchParams(location.search).get('paid') !== order) return;
+      const { data, error } = await sb.functions.invoke('payments/status', {
+        body: { payment_id: payment, order_id: order },
+        signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(8000) : undefined,
+      });
+      if (error) continue;
+      if (data?.status === 'pending') { sawPending = true; continue; }
+      const message = {
+        succeeded: 'Оплата подтверждена. Вопросы начислены.',
+        canceled: 'Оплата отменена.',
+        unknown: 'Статус оплаты не удалось определить. Проверьте баланс в профиле.',
+      }[data?.status];
+      if (!message) continue;
+      finishPaymentReturn(order);
+      trackGoal('payment_return');
+      showToast(t(message));
+      if (data.status === 'succeeded') refreshChatQuota();
+      return;
+    }
+    showToast(t(sawPending ? 'Платёж ещё обрабатывается. Обновите страницу, чтобы проверить статус.'
+      : 'Не удалось проверить оплату. Обновите страницу и попробуйте снова.'));
+  } finally {
+    if (checkingPayment === order) checkingPayment = null;
+  }
+}
+
+window.addEventListener('online', () => {
+  const order = new URLSearchParams(location.search).get('paid');
+  if (order) checkPaymentReturn(order);
+});
 
 // Гость нажал «Купить» → вошёл → открываем покупку того же пакета.
 function resumePendingBuy() {
