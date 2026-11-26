@@ -31,26 +31,18 @@ function closeSettingsPanel() {
   if (typeof getCurrentView === 'function' && getCurrentView() === 'settings') navigateBack();
 }
 
-const HOME_KNIGHT_SRC = {
-  gold: 'assests/knight.webp',
-  maroon: 'assests/knight-red.webp',
-  blue: 'assests/knight-blue.webp',
-  green: 'assests/knight-green.webp',
-  purple: 'assests/knight-purple.png',
-  rose: 'assests/knight-rose.png?v=2',
-};
-
 // Конь другого цвета грузится только при смене акцента — и меняется с
 // задержкой, пока качается картинка. Поэтому все цвета подгружаем и
 // декодируем заранее; ссылки держим, чтобы браузер их не выбросил.
-const homeKnightPreloaded = [];
+const homeKnightPreloaded = new Map();
 function preloadHomeKnights() {
-  if (homeKnightPreloaded.length) return;
-  for (const src of Object.values(HOME_KNIGHT_SRC)) {
+  for (const accent of Object.keys(darkKnightFiles)) {
+    const src = homeKnightSource(accent);
+    if (homeKnightPreloaded.has(src)) continue;
     const img = new Image();
     img.src = src;
     if (img.decode) img.decode().catch(() => {});
-    homeKnightPreloaded.push(img);
+    homeKnightPreloaded.set(src, img);
   }
 }
 window.addEventListener('load', () => {
@@ -66,13 +58,16 @@ function applyAccent(name) {
   document.querySelectorAll('.accent-swatch').forEach(el => {
     el.classList.toggle('is-active', el.dataset.accent === name);
   });
-  window.__homeKnightSrc = HOME_KNIGHT_SRC[name] || HOME_KNIGHT_SRC.gold;
-  const knightImg = $id('homeKnightImg');
-  if (knightImg) knightImg.src = window.__homeKnightSrc;
-  const tourHero = document.querySelector('.tour-hero');
-  if (tourHero?.getAttribute('src')) tourHero.src = window.__homeKnightSrc;
   applyFaviconAccent(name);
 }
+
+document.addEventListener(PALETTE_CHANGED_EVENT, () => {
+  const src = homeKnightSource(document.documentElement.dataset.accent);
+  window.__homeKnightSrc = src;
+  for (const img of document.querySelectorAll('#homeKnightImg, #loadingKnightImg, .tour-hero[src]')) {
+    if (img.getAttribute('src') !== src) img.src = src;
+  }
+});
 
 /* ---- Иконка во вкладке в цвет акцента ----
    Берём золотую иконку и перекрашиваем на canvas: каждый пиксель смешиваем

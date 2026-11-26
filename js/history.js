@@ -201,9 +201,21 @@ function resumableLocalGame() {
   return readLocalGame() || (localGameOwner ? readLocalGame(null) : null);
 }
 
+let dismissedResumeGameId = null;
 function updateResumeGameButton() {
-  $id('resumeGameBtn').classList.toggle('hidden', !resumableLocalGame());
+  const draft = resumableLocalGame();
+  const dismissed = !!draft && draft.id === dismissedResumeGameId;
+  $id('resumeGameBtn').classList.toggle('hidden', !draft);
+  const dock = $id('homeResumeDock');
+  dock.classList.toggle('is-dismissed', dismissed);
+  dock.inert = !draft || dismissed;
 }
+
+$id('dismissResumeGameBtn').addEventListener('click', () => {
+  dismissedResumeGameId = resumableLocalGame()?.id ?? null;
+  updateResumeGameButton();
+  $id('homePlayText').focus({ preventScroll: true });
+});
 
 function claimLocalGame(saved) {
   const owner = saved ? saved.owner : localGameOwner;

@@ -186,13 +186,23 @@
 
 <!-- Применяем тему ДО первой отрисовки -->
 <script>
+const darkKnightFiles = {
+  gold: 'knight.webp', maroon: 'knight-red.webp', blue: 'knight-blue.webp',
+  green: 'knight-green.webp', purple: 'knight-purple.png', rose: 'knight-rose.png?v=2'
+};
+function homeKnightSource(accent) {
+  const color = Object.hasOwn(darkKnightFiles, accent) ? accent : 'gold';
+  const file = document.documentElement.classList.contains('dark')
+    ? darkKnightFiles[color] : 'knight-light-' + color + '.webp';
+  return 'assests/' + file;
+}
 (function () {
   try {
     var theme = localStorage.getItem('chessTheme') || 'dark';
     if (theme === 'dark') document.documentElement.classList.add('dark');
     var accent = localStorage.getItem('chessAccent') || 'gold';
     document.documentElement.setAttribute('data-accent', accent);
-    window.__homeKnightSrc = { gold: 'assests/knight.webp', maroon: 'assests/knight-red.webp', blue: 'assests/knight-blue.webp', green: 'assests/knight-green.webp', purple: 'assests/knight-purple.png', rose: 'assests/knight-rose.png?v=2' }[accent] || 'assests/knight.webp';
+    window.__homeKnightSrc = homeKnightSource(accent);
     var boardStyle = localStorage.getItem('chessBoardStyle') || 'classic';
     document.documentElement.setAttribute('data-board-style', boardStyle);
     // Лёгкий режим. Пока его не выбирали: включён, если раньше выключали анимации
@@ -283,7 +293,15 @@
         <button type="button" class="home-mode-btn" data-mode="characters" aria-pressed="false">Против персонажей</button>
       </div>
     </div>
-    <button id="resumeGameBtn" class="home-resume-btn hidden" type="button">Продолжить партию</button>
+    <div id="homeResumeDock" class="home-resume-dock">
+      <svg class="home-resume-shape" viewBox="0 0 308 40" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0 0C20 0 36 9 36 20C36 31 45 40 56 40H252C263 40 272 31 272 20C272 9 288 0 308 0Z" vector-effect="non-scaling-stroke"/>
+      </svg>
+      <button id="resumeGameBtn" class="home-resume-btn hidden" type="button">Продолжить партию</button>
+      <button id="dismissResumeGameBtn" class="home-resume-dismiss" type="button" aria-label="Скрыть кнопку продолжения партии" title="Скрыть">
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
     </div>
   </div>
 

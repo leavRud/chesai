@@ -1519,9 +1519,11 @@ html:has(.home-oval:hover, .settings-panel:hover, .modal:hover) .home-screen {
 .home-capsule {
   position: relative;
   isolation: isolate;
+  margin-bottom: 0;
+  transition: margin-bottom 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.home-capsule:has(.home-resume-btn:not(.hidden)) {
-  margin-bottom: 52px;
+.home-capsule:has(.home-resume-btn:not(.hidden)):not(:has(.home-resume-dock.is-dismissed)) {
+  margin-bottom: 40px;
 }
 .home-oval {
   position: relative;
@@ -1649,51 +1651,89 @@ html:has(.home-oval:hover, .settings-panel:hover, .modal:hover) .home-screen {
   user-select: none;
   transition: color 0.25s, text-shadow 0.25s;
 }
-.home-resume-btn {
+:where(html:not(.dark)) .home-play-text {
+  color: #807463;
+}
+.home-resume-dock {
   position: absolute;
-  z-index: 3;
-  top: calc(100% - 1px);
+  z-index: 1;
+  top: calc(100% - 14px);
   left: 50%;
   transform: translateX(-50%);
-  width: 260px;
+  display: flex;
+  align-items: stretch;
+  width: 236px;
   max-width: calc(100% - 64px);
-  min-height: 48px;
-  padding: 12px 20px 14px;
-  border: 0;
-  border-radius: 0 0 28px 28px;
-  background: var(--accent);
-  color: #fff;
-  font: 600 14px var(--font-body);
-  cursor: pointer;
-  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.18));
-  transition: filter 0.2s ease;
+  min-height: 54px;
+  padding: 12px 8px 2px 10px;
+  opacity: 1;
+  visibility: visible;
+  transform-origin: top center;
+  transition: opacity 0.22s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), visibility 0s;
 }
-/* Вогнутые плечи плавно соединяют кнопку с нижней кромкой капсулы. */
-.home-resume-btn::before,
-.home-resume-btn::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  width: 24px;
-  height: 24px;
+.home-resume-dock.is-dismissed {
+  opacity: 0;
+  transform: translate(-50%, -12px) scale(0.97);
+  visibility: hidden;
   pointer-events: none;
+  transition-delay: 0s, 0s, 0.3s;
 }
-.home-resume-btn::before {
-  right: 100%;
-  background: radial-gradient(circle at 0 100%, transparent 23.5px, var(--accent) 24px);
+@media (prefers-reduced-motion: reduce) {
+  .home-capsule,
+  .home-resume-dock { transition: none; }
 }
-.home-resume-btn::after {
-  left: 100%;
-  background: radial-gradient(circle at 100% 100%, transparent 23.5px, var(--accent) 24px);
+/* Единый контур: заливка, обводка и тень повторяют изгибы перетекания. */
+.home-resume-shape {
+  position: absolute;
+  top: 14px;
+  left: -36px;
+  width: calc(100% + 72px);
+  height: calc(100% - 14px);
+  overflow: visible;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 8px rgba(0, 0, 0, 0.12));
 }
-html.dark .home-resume-btn { color: #181818; }
-.home-resume-btn:hover {
-  filter: brightness(1.08) drop-shadow(0 8px 12px rgba(0, 0, 0, 0.22));
+.home-resume-shape path {
+  fill: var(--bg-alt);
+  stroke: rgba(128, 128, 128, 0.15);
+  stroke-width: 1;
 }
-.home-resume-btn:active { filter: brightness(0.95); }
-.home-resume-btn:focus-visible {
-  outline: 2px solid var(--text);
-  outline-offset: 4px;
+.home-resume-dock:has(.home-resume-btn.hidden) { display: none; }
+.home-resume-btn,
+.home-resume-dismiss {
+  position: relative;
+  border: 0;
+  border-radius: 200px;
+  background: transparent;
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+.home-resume-btn {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 2px 6px 10px;
+  color: var(--accent);
+  font: 600 12px var(--font-body);
+  letter-spacing: 0.01em;
+}
+.home-resume-dismiss {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  min-height: 40px;
+  padding: 0 0 2px;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+.home-resume-btn:hover,
+.home-resume-dismiss:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.home-resume-btn:focus-visible,
+.home-resume-dismiss:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
 }
 .home-play-text:hover {
   color: var(--accent);
@@ -2147,13 +2187,12 @@ html.dark .settings-panel { background: rgba(10, 10, 10, 0.78); }
    ширина 721–866px), где обычный десктопный вид ещё не помещается. */
 @media (max-width: 880px) {
   .home-capsule { width: 100%; display: flex; justify-content: center; }
-  .home-resume-btn {
-    z-index: 1;
-    top: calc(100% - 18px);
-    width: 210px;
-    min-height: 66px;
-    padding-top: 28px;
+  .home-resume-dock {
+    top: calc(100% - 28px);
+    width: 224px;
+    padding-top: 26px;
   }
+  .home-resume-shape { top: 0; height: 100%; }
   .home-oval {
     padding: 20px 24px;
     flex-direction: column;
