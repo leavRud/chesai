@@ -1516,6 +1516,13 @@ html:has(.home-oval:hover, .settings-panel:hover, .modal:hover) .home-screen {
 /* =========================================================================
    КАПСУЛА (овал)
    ========================================================================= */
+.home-capsule {
+  position: relative;
+  isolation: isolate;
+}
+.home-capsule:has(.home-resume-btn:not(.hidden)) {
+  margin-bottom: 52px;
+}
 .home-oval {
   position: relative;
   z-index: 2;
@@ -1643,8 +1650,50 @@ html:has(.home-oval:hover, .settings-panel:hover, .modal:hover) .home-screen {
   transition: color 0.25s, text-shadow 0.25s;
 }
 .home-resume-btn {
-  width: fit-content;
-  margin-inline: auto;
+  position: absolute;
+  z-index: 3;
+  top: calc(100% - 1px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 260px;
+  max-width: calc(100% - 64px);
+  min-height: 48px;
+  padding: 12px 20px 14px;
+  border: 0;
+  border-radius: 0 0 28px 28px;
+  background: var(--accent);
+  color: #fff;
+  font: 600 14px var(--font-body);
+  cursor: pointer;
+  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.18));
+  transition: filter 0.2s ease;
+}
+/* Вогнутые плечи плавно соединяют кнопку с нижней кромкой капсулы. */
+.home-resume-btn::before,
+.home-resume-btn::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+}
+.home-resume-btn::before {
+  right: 100%;
+  background: radial-gradient(circle at 0 100%, transparent 23.5px, var(--accent) 24px);
+}
+.home-resume-btn::after {
+  left: 100%;
+  background: radial-gradient(circle at 100% 100%, transparent 23.5px, var(--accent) 24px);
+}
+html.dark .home-resume-btn { color: #181818; }
+.home-resume-btn:hover {
+  filter: brightness(1.08) drop-shadow(0 8px 12px rgba(0, 0, 0, 0.22));
+}
+.home-resume-btn:active { filter: brightness(0.95); }
+.home-resume-btn:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 4px;
 }
 .home-play-text:hover {
   color: var(--accent);
@@ -2097,6 +2146,14 @@ html.dark .settings-panel { background: rgba(10, 10, 10, 0.78); }
    получить горизонтальное переполнение на портретных планшетах (iPad и т.п.,
    ширина 721–866px), где обычный десктопный вид ещё не помещается. */
 @media (max-width: 880px) {
+  .home-capsule { width: 100%; display: flex; justify-content: center; }
+  .home-resume-btn {
+    z-index: 1;
+    top: calc(100% - 18px);
+    width: 210px;
+    min-height: 66px;
+    padding-top: 28px;
+  }
   .home-oval {
     padding: 20px 24px;
     flex-direction: column;
@@ -2168,8 +2225,8 @@ html.dark .settings-panel { background: rgba(10, 10, 10, 0.78); }
 
 /* Большие мониторы: капсула в 780px терялась посреди экрана — увеличиваем её целиком,
    вместе с конём, «ИГРАТЬ» и режимами (zoom сохраняет пропорции и раскладку). */
-@media (min-width: 1600px) and (min-height: 820px) { .home-oval { zoom: 1.2; } }
-@media (min-width: 2100px) and (min-height: 1000px) { .home-oval { zoom: 1.45; } }
+@media (min-width: 1600px) and (min-height: 820px) { .home-capsule { zoom: 1.2; } }
+@media (min-width: 2100px) and (min-height: 1000px) { .home-capsule { zoom: 1.45; } }
 
 /* Короткие/альбомные экраны (мобильные в landscape, невысокие окна браузера) —
    .home-screen зафиксирован и не скроллится, поэтому на маленькой высоте
