@@ -49,6 +49,28 @@ async function fetchProfileFromSupabase(userId) {
   return acc;
 }
 
+// Открытая вкладка могла остаться со старым локальным кэшем после изменения
+// профиля на другом устройстве. Запрашиваем профиль при открытии панели.
+let profileRefreshPromise = null;
+function refreshAccountProfile() {
+  if (profileRefreshPromise) return profileRefreshPromise;
+  profileRefreshPromise = (async () => {
+    try {
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) return null;
+      const acc = await fetchProfileFromSupabase(user.id);
+      if (!acc) return null;
+      renderMenuProfile();
+      if (getCurrentView() === 'profile') renderProfileView();
+      return acc;
+    } catch (error) {
+      console.error('Не удалось обновить профиль:', error);
+      return null;
+    }
+  })().finally(() => { profileRefreshPromise = null; });
+  return profileRefreshPromise;
+}
+
 // Записывает изменения профиля (например, новый Elo) в Supabase и локальный кэш.
 async function syncProfileToSupabase(userId, patch) {
   const { error } = await sb

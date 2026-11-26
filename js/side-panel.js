@@ -144,6 +144,7 @@ function navigateTo(view) {
     playSound('ui');
   }
   renderSideView();
+  if (view === 'profile') refreshAccountProfile();
 }
 
 // Кнопка "Назад" (и Escape) — ЕДИНСТВЕННЫЙ способ вернуться назад.
@@ -185,6 +186,7 @@ function openSidePanel() {
   if (!overlay) { console.error('menuOverlay не найден'); return; }
   overlay.classList.add('open');
   playSound('ui');
+  refreshAccountProfile();
 }
 function closeSidePanel() {
   if (!confirmLeaveProfileEdit()) return;
